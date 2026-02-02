@@ -1,138 +1,83 @@
-from pydantic import BaseModel, EmailStr, Field
-from enum import Enum
-from datetime import datetime
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field, validator
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
+from datetime import date, datetime, time
 
-class LeadStatus(str, Enum):
-    NEW = "new"
-    CONTACTED = "contacted"
-    QUALIFIED = "qualified"
-    CONVERTED = "converted"
-    LOST = "lost"
+if TYPE_CHECKING:
+    from schemas.user import User
+    from schemas.department import Department
 
-class LeadSource(str, Enum):
-    INSTAGRAM = "instagram"
-    FACEBOOK = "facebook"
-    WHATSAPP = "whatsapp"
-    WEBSITE = "website"
-    REFERRAL = "referral"
-    WALK_IN = "walk_in"
-
-class LeadCreate(BaseModel):
-    name: str
-    phone: str
-    email: Optional[EmailStr] = None
-    source: LeadSource
-    initial_message: Optional[str] = None
-    intent: Optional[str] = None
-    preferred_doctor: Optional[str] = None
-    preferred_date: Optional[datetime] = None
-    service_interest: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-
-class LeadUpdate(BaseModel):
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[EmailStr] = None
-    status: Optional[LeadStatus] = None
-    intent: Optional[str] = None
-    preferred_doctor: Optional[str] = None
-    preferred_date: Optional[datetime] = None
-    service_interest: Optional[str] = None
-    next_follow_up: Optional[datetime] = None
-
-class LeadResponse(BaseModel):
-    id: int
-    clinic_id: int
-    name: str
-    phone: str
-    email: Optional[str]
-    source: str
-    status: str
-    initial_message: Optional[str]
-    conversation_history: List[Dict[str, Any]]
-    ai_responses: int
-    intent: Optional[str]
-    preferred_doctor: Optional[str]
-    preferred_date: Optional[datetime]
-    service_interest: Optional[str]
-    converted_to_patient: bool
-    patient_id: Optional[int]
-    last_contacted: Optional[datetime]
-    next_follow_up: Optional[datetime]
-    follow_up_count: int
-    metadata: Dict[str, Any]
-    created_at: datetime
-
+class DoctorBase(BaseModel):
+    """Base doctor schema"""
+    specialization: str = Field(..., min_length=2, max_length=200)
+    qualification: Optional[str] = Field(None, max_length=500)
+    license_number: Optional[str] = Field(None, max_length=100)
+    experience_years: Optional[int] = Field(None, ge=0, le=70)
+    consultation_fee: int = Field(default=0, ge=0)
+    average_consultation_time: int = Field(default=30, ge=10, le=240)
+    bio: Optional[str] = None
+    
     class Config:
         from_attributes = True
 
-class AIInteractionCreate(BaseModel):
-    lead_id: Optional[int] = None
-    platform: str
-    message_type: str = "text"
-    user_message: str
-    ai_response: Optional[str] = None
-    intent_detected: Optional[str] = None
-    entities_extracted: Optional[Dict[str, Any]] = None
-    confidence_score: Optional[float] = None
-    action_taken: Optional[str] = None
+class DoctorCreate(DoctorBase):
+    """Create doctor schema"""
+    user_id: int
+    department_id: Optional[int] = None
+    availability_schedule: Optional[Dict[str, Any]] = None
+    joined_date: Optional[date] = None
 
-class AIInteractionResponse(BaseModel):
+class DoctorUpdate(BaseModel):
+    """Update doctor schema"""
+    specialization: Optional[str] = None
+    qualification: Optional[str] = None
+    license_number: Optional[str] = None
+    experience_years: Optional[int] = Field(None, ge=0, le=70)
+    consultation_fee: Optional[int] = Field(None, ge=0)
+    average_consultation_time: Optional[int] = Field(None, ge=10, le=240)
+    department_id: Optional[int] = None
+    availability_schedule: Optional[Dict[str, Any]] = None
+    is_available: Optional[bool] = None
+    is_active: Optional[bool] = None
+    bio: Optional[str] = None
+
+class DoctorAvailability(BaseModel):
+    """Doctor availability for a day"""
+    day: str = Field(..., regex=r'^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$')
+    is_available: bool = True
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    slots: Optional[int] = None
+    break_start: Optional[time] = None
+    break_end: Optional[time] = None
+
+class DoctorInDB(DoctorBase):
+    """Doctor from database"""
     id: int
-    clinic_id: int
-    lead_id: Optional[int]
-    platform: str
-    message_type: str
-    user_message: str
-    ai_response: Optional[str]
-    intent_detected: Optional[str]
-    entities_extracted: Dict[str, Any]
-    confidence_score: Optional[float]
-    action_taken: Optional[str]
-    response_time_ms: Optional[int]
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class ChatbotMessage(BaseModel):
-    message: str
-    phone: Optional[str] = None
-    name: Optional[str] = None
-    platform: LeadSource = LeadSource.WEBSITE
-    metadata: Optional[Dict[str, Any]] = None
-
-class ChatbotResponse(BaseModel):
-    response: str
-    lead_id: Optional[int] = None
-    action_taken: Optional[str] = None
-    confidence: float
-    next_steps: List[str] = []
-
-class AutomationRuleCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    trigger_type: str
-    trigger_conditions: Dict[str, Any]
-    action_type: str
-    action_config: Dict[str, Any]
-    priority: int = 0
-
-class AutomationRuleResponse(BaseModel):
-    id: int
-    clinic_id: int
-    name: str
-    description: Optional[str]
-    trigger_type: str
-    trigger_conditions: Dict[str, Any]
-    action_type: str
-    action_config: Dict[str, Any]
+    tenant_id: int
+    user_id: int
+    department_id: Optional[int]
+    doctor_code: str
+    availability_schedule: Dict[str, Any]
+    is_available: bool
     is_active: bool
-    priority: int
-    execution_count: int
-    last_executed: Optional[datetime]
+    joined_date: Optional[date]
     created_at: datetime
+    updated_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+class Doctor(DoctorInDB):
+    """Public doctor schema"""
+    user: 'User'  # Forward reference
+    department: Optional['Department'] = None
+
+class DoctorWithSchedule(Doctor):
+    """Doctor with weekly schedule"""
+    weekly_schedule: List[DoctorAvailability]
+
+class DoctorStats(BaseModel):
+    """Doctor statistics"""
+    total_appointments: int = 0
+    completed_appointments: int = 0
+    cancelled_appointments: int = 0
+    average_rating: Optional[float] = None
+    total_patients: int = 0
+    today_appointments: int = 0

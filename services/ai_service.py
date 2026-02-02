@@ -11,7 +11,7 @@ import json
 import re
 
 from models.lead import Lead
-from models.ai_interaction import AIInteraction
+from models.ai_lead import AIInteraction
 from models.automation_rule import AutomationRule
 from models.appointment import Appointment
 from models.patient import Patient

@@ -19,7 +19,7 @@ from core.security import get_current_user, require_clinic_access
 from models.user import User
 from models.base import UserRole, LeadStatus, LeadSource
 from models.lead import Lead
-from models.ai_interaction import AIInteraction
+from models.ai_lead import AIInteraction
 
 router = APIRouter(prefix="/api/ai", tags=["AI Automation"])
 

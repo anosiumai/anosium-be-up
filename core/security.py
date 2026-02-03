@@ -1,270 +1,360 @@
 """
-Authentication & Authorization Module
-Handles JWT tokens, password hashing, and role-based access
+Security utilities for authentication and authorization
 """
 
 from datetime import datetime, timedelta
-from typing import Optional, List
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+from typing import Optional, Dict, Any
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
-import os
+from jose import JWTError, jwt
 
-from core.database import get_db
-from models.user import User
-from models.base import UserRole
-from schemas.auth import TokenResponse
-from schemas.user import UserResponse
-from schemas.clinic import ClinicResponse
+from core.config import settings
 
-# Security Configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
-# Password hashing
+# Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# HTTP Bearer token
-security = HTTPBearer()
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    Verify a plain password against a hashed password
+    
+    Args:
+        plain_password: Plain text password
+        hashed_password: Hashed password from database
+        
+    Returns:
+        True if password matches, False otherwise
+    """
+    return pwd_context.verify(plain_password, hashed_password)
 
 
-class AuthService:
-    """Authentication service for password and token management"""
+def get_password_hash(password: str) -> str:
+    """
+    Hash a password using bcrypt
     
-    @staticmethod
-    def hash_password(password: str) -> str:
-        """Hash a password"""
-        return pwd_context.hash(password)
+    Args:
+        password: Plain text password
+        
+    Returns:
+        Hashed password
+    """
+    return pwd_context.hash(password)
+
+
+def validate_password_strength(password: str) -> tuple[bool, Optional[str]]:
+    """
+    Validate password strength based on configured requirements
     
-    @staticmethod
-    def verify_password(plain_password: str, hashed_password: str) -> bool:
-        """Verify a password against its hash"""
-        return pwd_context.verify(plain_password, hashed_password)
+    Args:
+        password: Password to validate
+        
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if len(password) < settings.PASSWORD_MIN_LENGTH:
+        return False, f"Password must be at least {settings.PASSWORD_MIN_LENGTH} characters long"
     
-    @staticmethod
-    def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-        """Create JWT access token"""
-        to_encode = data.copy()
-        
-        if expires_delta:
-            expire = datetime.utcnow() + expires_delta
-        else:
-            expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        
-        to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-        return encoded_jwt
+    if settings.PASSWORD_REQUIRE_UPPERCASE and not any(c.isupper() for c in password):
+        return False, "Password must contain at least one uppercase letter"
     
-    @staticmethod
-    def decode_token(token: str) -> dict:
-        """Decode JWT token"""
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            return payload
-        except JWTError:
-            return None
+    if settings.PASSWORD_REQUIRE_LOWERCASE and not any(c.islower() for c in password):
+        return False, "Password must contain at least one lowercase letter"
     
-    @staticmethod
-    def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
-        """Authenticate user with username and password"""
-        user = db.query(User).filter(User.username == username).first()
-        
-        if not user:
-            return None
-        
-        if not AuthService.verify_password(password, user.hashed_password):
-            return None
-        
-        if not user.is_active:
-            return None
-        
-        # Update last login
-        user.last_login = datetime.utcnow()
-        db.commit()
-        
-        return user
+    if settings.PASSWORD_REQUIRE_DIGIT and not any(c.isdigit() for c in password):
+        return False, "Password must contain at least one digit"
     
-    @staticmethod
-    def create_user(
-        db: Session,
-        clinic_id: int,
-        username: str,
-        email: str,
-        password: str,
-        full_name: str,
-        role: UserRole,
-        phone: Optional[str] = None,
-        specialization: Optional[str] = None,
-        license_number: Optional[str] = None
-    ) -> User:
-        """Create a new user"""
-        # Check if username or email exists
-        existing = db.query(User).filter(
-            (User.username == username) | (User.email == email)
-        ).first()
+    if settings.PASSWORD_REQUIRE_SPECIAL:
+        special_chars = "!@#$%^&*()_+-=[]{}|;:,.<>?"
+        if not any(c in special_chars for c in password):
+            return False, "Password must contain at least one special character"
+    
+    return True, None
+
+
+def create_access_token(
+    data: Dict[str, Any],
+    expires_delta: Optional[timedelta] = None
+) -> str:
+    """
+    Create JWT access token
+    
+    Args:
+        data: Data to encode in the token
+        expires_delta: Token expiration time (defaults to settings value)
         
-        if existing:
-            raise ValueError("Username or email already exists")
-        
-        hashed_password = AuthService.hash_password(password)
-        
-        user = User(
-            clinic_id=clinic_id,
-            username=username,
-            email=email,
-            hashed_password=hashed_password,
-            full_name=full_name,
-            phone=phone,
-            role=role,
-            specialization=specialization,
-            license_number=license_number
+    Returns:
+        Encoded JWT token
+    """
+    to_encode = data.copy()
+    
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
-        
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        
-        return user
-
-
-# Dependency to get current user from token
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
-) -> User:
-    """
-    Dependency to get current authenticated user
-    Validates JWT token and returns user object
-    """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
+    
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "type": "access"
+    })
+    
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
     )
     
-    token = credentials.credentials
-    payload = AuthService.decode_token(token)
+    return encoded_jwt
+
+
+def create_refresh_token(
+    data: Dict[str, Any],
+    expires_delta: Optional[timedelta] = None
+) -> str:
+    """
+    Create JWT refresh token
     
-    if payload is None:
-        raise credentials_exception
+    Args:
+        data: Data to encode in the token
+        expires_delta: Token expiration time (defaults to settings value)
+        
+    Returns:
+        Encoded JWT refresh token
+    """
+    to_encode = data.copy()
     
-    user_id: int = payload.get("user_id")
-    if user_id is None:
-        raise credentials_exception
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise credentials_exception
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user"
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
         )
     
-    # Check subscription status
-    from services.multi_clinic import MultiClinicService
-    if not MultiClinicService.is_subscription_active(user.clinic):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Clinic subscription is not active"
-        )
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "type": "refresh"
+    })
     
-    return user
-
-
-def require_role(allowed_roles: List[UserRole]):
-    """
-    Dependency factory to require specific roles
-    Usage: current_user = Depends(require_role([UserRole.ADMIN, UserRole.DOCTOR]))
-    """
-    async def role_checker(
-        current_user: User = Depends(get_current_user)
-    ) -> User:
-        if current_user.role not in allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied. Required roles: {[role.value for role in allowed_roles]}"
-            )
-        return current_user
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
+    )
     
-    return role_checker
+    return encoded_jwt
 
 
-async def require_clinic_access(
-    current_user: User = Depends(get_current_user)
-) -> User:
+def decode_token(token: str) -> Optional[Dict[str, Any]]:
     """
-    Dependency to ensure user has access to clinic resources
-    Super admins have access to all clinics
-    """
-    return current_user
-
-
-# Optional authentication (for public endpoints that can benefit from user context)
-async def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    db: Session = Depends(get_db)
-) -> Optional[User]:
-    """Optional authentication - returns None if not authenticated"""
-    if not credentials:
-        return None
+    Decode and verify JWT token
     
+    Args:
+        token: JWT token to decode
+        
+    Returns:
+        Decoded token payload or None if invalid
+    """
     try:
-        return await get_current_user(credentials, db)
-    except HTTPException:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+        return payload
+    except JWTError:
         return None
 
 
-def check_clinic_access(user: User, clinic_id: int) -> bool:
+def verify_token_type(token_payload: Dict[str, Any], expected_type: str) -> bool:
     """
-    Check if user has access to specific clinic
-    Super admins have access to all clinics
-    Other users only have access to their own clinic
+    Verify that token is of expected type (access or refresh)
+    
+    Args:
+        token_payload: Decoded token payload
+        expected_type: Expected token type ('access' or 'refresh')
+        
+    Returns:
+        True if token type matches, False otherwise
     """
-    if user.role == UserRole.SUPER_ADMIN:
+    return token_payload.get("type") == expected_type
+
+
+def is_token_expired(token_payload: Dict[str, Any]) -> bool:
+    """
+    Check if token is expired
+    
+    Args:
+        token_payload: Decoded token payload
+        
+    Returns:
+        True if token is expired, False otherwise
+    """
+    exp = token_payload.get("exp")
+    if not exp:
         return True
     
-    return user.clinic_id == clinic_id
+    return datetime.fromtimestamp(exp) < datetime.utcnow()
 
 
-def check_permission(user: User, permission: str) -> bool:
+def extract_user_id_from_token(token: str) -> Optional[int]:
     """
-    Check if user has specific permission based on role
-    Permissions hierarchy:
-    - SUPER_ADMIN: All permissions
-    - CLINIC_ADMIN: Clinic management, all clinic operations
-    - DOCTOR: Patient records, appointments, prescriptions
-    - RECEPTIONIST: Appointments, basic patient info
-    - STAFF: View-only access
+    Extract user ID from token
+    
+    Args:
+        token: JWT token
+        
+    Returns:
+        User ID or None if invalid
     """
-    role_permissions = {
-        UserRole.SUPER_ADMIN: ["*"],  # All permissions
-        UserRole.CLINIC_ADMIN: [
-            "manage_clinic", "manage_users", "manage_patients",
-            "manage_appointments", "manage_billing", "view_analytics",
-            "manage_ai", "manage_leads"
-        ],
-        UserRole.DOCTOR: [
-            "view_patients", "edit_patients", "view_appointments",
-            "edit_appointments", "view_medical_records", "edit_medical_records"
-        ],
-        UserRole.RECEPTIONIST: [
-            "view_patients", "edit_patients", "view_appointments",
-            "create_appointments", "edit_appointments", "view_billing"
-        ],
-        UserRole.STAFF: [
-            "view_patients", "view_appointments"
-        ]
+    payload = decode_token(token)
+    if not payload:
+        return None
+    
+    return payload.get("user_id")
+
+
+def extract_tenant_id_from_token(token: str) -> Optional[int]:
+    """
+    Extract tenant ID from token
+    
+    Args:
+        token: JWT token
+        
+    Returns:
+        Tenant ID or None if invalid
+    """
+    payload = decode_token(token)
+    if not payload:
+        return None
+    
+    return payload.get("tenant_id")
+
+
+def create_password_reset_token(user_id: int) -> str:
+    """
+    Create password reset token
+    
+    Args:
+        user_id: User ID
+        
+    Returns:
+        Encoded JWT token for password reset
+    """
+    expire = datetime.utcnow() + timedelta(hours=1)
+    
+    to_encode = {
+        "user_id": user_id,
+        "exp": expire,
+        "type": "password_reset"
     }
     
-    user_permissions = role_permissions.get(user.role, [])
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
+    )
     
-    # Super admin has all permissions
-    if "*" in user_permissions:
-        return True
+    return encoded_jwt
+
+
+def verify_password_reset_token(token: str) -> Optional[int]:
+    """
+    Verify password reset token and extract user ID
     
-    return permission in user_permissions
+    Args:
+        token: Password reset token
+        
+    Returns:
+        User ID or None if invalid
+    """
+    payload = decode_token(token)
+    if not payload:
+        return None
+    
+    if payload.get("type") != "password_reset":
+        return None
+    
+    if is_token_expired(payload):
+        return None
+    
+    return payload.get("user_id")
+
+
+def create_email_verification_token(user_id: int) -> str:
+    """
+    Create email verification token
+    
+    Args:
+        user_id: User ID
+        
+    Returns:
+        Encoded JWT token for email verification
+    """
+    expire = datetime.utcnow() + timedelta(days=7)
+    
+    to_encode = {
+        "user_id": user_id,
+        "exp": expire,
+        "type": "email_verification"
+    }
+    
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
+    )
+    
+    return encoded_jwt
+
+
+def verify_email_verification_token(token: str) -> Optional[int]:
+    """
+    Verify email verification token and extract user ID
+    
+    Args:
+        token: Email verification token
+        
+    Returns:
+        User ID or None if invalid
+    """
+    payload = decode_token(token)
+    if not payload:
+        return None
+    
+    if payload.get("type") != "email_verification":
+        return None
+    
+    if is_token_expired(payload):
+        return None
+    
+    return payload.get("user_id")
+
+
+def hash_api_key(api_key: str) -> str:
+    """
+    Hash API key for storage
+    
+    Args:
+        api_key: Plain API key
+        
+    Returns:
+        Hashed API key
+    """
+    return get_password_hash(api_key)
+
+
+def verify_api_key(plain_api_key: str, hashed_api_key: str) -> bool:
+    """
+    Verify API key
+    
+    Args:
+        plain_api_key: Plain API key
+        hashed_api_key: Hashed API key from database
+        
+    Returns:
+        True if API key is valid, False otherwise
+    """
+    return verify_password(plain_api_key, hashed_api_key)

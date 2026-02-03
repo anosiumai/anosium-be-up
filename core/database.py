@@ -1,56 +1,54 @@
 """
-Database Configuration with Connection Pooling
-Optimized for high performance and concurrency
+Database connection and session management
 """
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import QueuePool
-from contextlib import contextmanager
+from sqlalchemy.pool import NullPool, QueuePool
 from typing import Generator
-from dotenv import load_dotenv
-import os
+import logging
 
-# Load .env file BEFORE reading any env vars
-load_dotenv()
+from core.config import settings
 
-# Database URL from environment variable
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://user:password@localhost:5432/clinic_saas"
-)
+# Configure logging
+logger = logging.getLogger(__name__)
 
-# Build connect_args conditionally based on driver
-_connect_args = {}
-if DATABASE_URL.startswith("postgresql"):
-    _connect_args = {"connect_timeout": 10}
-elif DATABASE_URL.startswith("sqlite"):
-    _connect_args = {"check_same_thread": False}
-
-# Create engine with optimized connection pooling
+# Create SQLAlchemy engine
 engine = create_engine(
-    DATABASE_URL,
-    poolclass=QueuePool,
-    pool_size=20,
-    max_overflow=40,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-    echo=False,
-    connect_args=_connect_args,
+    settings.DATABASE_URL,
+    poolclass=QueuePool if settings.ENVIRONMENT == "production" else NullPool,
+    pool_size=settings.DATABASE_POOL_SIZE,
+    max_overflow=settings.DATABASE_MAX_OVERFLOW,
+    pool_timeout=settings.DATABASE_POOL_TIMEOUT,
+    pool_recycle=settings.DATABASE_POOL_RECYCLE,
+    pool_pre_ping=True,  # Verify connections before using them
+    echo=settings.DEBUG,  # Log SQL queries in debug mode
 )
 
-# Session factory
+# Create SessionLocal class
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=engine
 )
 
+# Create Base class for models
+Base = declarative_base()
 
+
+# Database session dependency
 def get_db() -> Generator[Session, None, None]:
     """
-    FastAPI dependency for database sessions.
-    Automatically handles session lifecycle.
+    Database session dependency for FastAPI
+    
+    Yields:
+        Database session
+        
+    Usage:
+        @app.get("/items")
+        def get_items(db: Session = Depends(get_db)):
+            ...
     """
     db = SessionLocal()
     try:
@@ -59,83 +57,167 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-@contextmanager
-def get_db_context():
-    """
-    Context manager for database sessions.
-    Use in non-FastAPI contexts (e.g. scripts, background tasks).
-    """
-    db = SessionLocal()
-    try:
-        yield db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
-
-
-# ---------------------------------------------------------------------------
-# Performance tuning hooks — fire once per raw DBAPI connection
-# ---------------------------------------------------------------------------
-
+# Event listeners for connection management
 @event.listens_for(engine, "connect")
-def _tune_sqlite(dbapi_conn, connection_record):
-    """WAL mode + memory temp store for SQLite."""
-    if "sqlite" not in DATABASE_URL:
-        return
-    cur = dbapi_conn.cursor()
-    cur.execute("PRAGMA journal_mode=WAL")
-    cur.execute("PRAGMA synchronous=NORMAL")
-    cur.execute("PRAGMA cache_size=10000")
-    cur.execute("PRAGMA temp_store=MEMORY")
-    cur.close()
+def set_sqlite_pragma(dbapi_conn, connection_record):
+    """
+    Set SQLite pragmas on connect (if using SQLite)
+    """
+    if "sqlite" in settings.DATABASE_URL:
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
-@event.listens_for(engine, "connect")
-def _tune_postgres(dbapi_conn, connection_record):
-    """Safe statement & lock timeouts for PostgreSQL."""
-    if "postgresql" not in DATABASE_URL:
-        return
-    cur = dbapi_conn.cursor()
-    cur.execute("SET statement_timeout = '30s'")
-    cur.execute("SET lock_timeout = '10s'")
-    cur.close()
+@event.listens_for(engine, "checkout")
+def receive_checkout(dbapi_conn, connection_record, connection_proxy):
+    """
+    Log database connection checkout
+    """
+    if settings.DEBUG:
+        logger.debug("Connection checked out from pool")
 
 
-# ---------------------------------------------------------------------------
-# Init / drop helpers
-# ---------------------------------------------------------------------------
+@event.listens_for(engine, "checkin")
+def receive_checkin(dbapi_conn, connection_record):
+    """
+    Log database connection checkin
+    """
+    if settings.DEBUG:
+        logger.debug("Connection returned to pool")
 
+
+# Database initialization
 def init_db():
     """
-    Create all tables declared in the models.
-    Called once at application startup via the lifespan hook.
+    Initialize database tables
+    
+    Creates all tables defined in models.
+    Should only be called once during application setup.
     """
-    from models.base import Base  # adjust import if your Base lives elsewhere
-    Base.metadata.create_all(bind=engine)
+    try:
+        # Import all models here to ensure they're registered with Base
+        from models import (
+            tenant, user, patient, doctor, department,
+            appointment, visit, service, billing,
+            ai_lead, notification, audit, analytics,
+            security, compliance, backup, integration
+        )
+        
+        # Create all tables
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created successfully")
+        
+    except Exception as e:
+        logger.error(f"Error initializing database: {str(e)}")
+        raise
 
 
 def drop_db():
     """
-    Drop every table.  Development / migration-reset only.
+    Drop all database tables
+    
+    WARNING: This will delete all data!
+    Should only be used in development/testing.
     """
-    from models.base import Base
-    Base.metadata.drop_all(bind=engine)
+    if settings.ENVIRONMENT == "production":
+        raise RuntimeError("Cannot drop database in production environment")
+    
+    try:
+        Base.metadata.drop_all(bind=engine)
+        logger.warning("All database tables dropped")
+    except Exception as e:
+        logger.error(f"Error dropping database: {str(e)}")
+        raise
 
 
-# ---------------------------------------------------------------------------
-# Health check
-# ---------------------------------------------------------------------------
-
-def check_db_health() -> bool:
+def check_db_connection() -> bool:
     """
-    Ping the database.  Returns True when the connection is usable.
+    Check if database connection is working
+    
+    Returns:
+        True if connection is successful, False otherwise
     """
     try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
+        db = SessionLocal()
+        db.execute("SELECT 1")
+        db.close()
+        logger.info("Database connection successful")
         return True
-    except Exception:
+    except Exception as e:
+        logger.error(f"Database connection failed: {str(e)}")
         return False
+
+
+def get_db_info() -> dict:
+    """
+    Get database connection information
+    
+    Returns:
+        Dictionary with database info
+    """
+    return {
+        "url": settings.DATABASE_URL.split("@")[-1],  # Hide credentials
+        "pool_size": settings.DATABASE_POOL_SIZE,
+        "max_overflow": settings.DATABASE_MAX_OVERFLOW,
+        "pool_timeout": settings.DATABASE_POOL_TIMEOUT,
+        "pool_recycle": settings.DATABASE_POOL_RECYCLE,
+        "environment": settings.ENVIRONMENT,
+    }
+
+
+# Context manager for database sessions
+class DatabaseSession:
+    """
+    Context manager for database sessions
+    
+    Usage:
+        with DatabaseSession() as db:
+            # Use db session
+            user = db.query(User).first()
+    """
+    
+    def __enter__(self) -> Session:
+        self.db = SessionLocal()
+        return self.db
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            self.db.rollback()
+        self.db.close()
+
+
+# Transaction context manager
+class Transaction:
+    """
+    Context manager for database transactions
+    
+    Usage:
+        with Transaction() as db:
+            # All operations in this block will be in a transaction
+            user = User(...)
+            db.add(user)
+            # Transaction will be committed automatically
+            # or rolled back if an exception occurs
+    """
+    
+    def __init__(self, db: Session = None):
+        self.db = db or SessionLocal()
+        self.should_close = db is None
+    
+    def __enter__(self) -> Session:
+        return self.db
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            if exc_type is not None:
+                self.db.rollback()
+            else:
+                try:
+                    self.db.commit()
+                except Exception:
+                    self.db.rollback()
+                    raise
+        finally:
+            if self.should_close:
+                self.db.close()

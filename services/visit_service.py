@@ -5,12 +5,13 @@ from sqlalchemy.orm import Session
 from models.visit import Visit, VisitStatus
 from models.patient import Patient
 from models.doctor import Doctor
-from models.appointment import Appointment
+from models.appointment import Appointment, AppointmentStatus
 from schemas.visit import VisitCreate, VisitUpdate
 from repositories.visit import VisitRepository
+from services.base_service import BaseService
 
 
-class VisitService:
+class VisitService(BaseService):
     """Service layer for Visit business logic"""
 
     def __init__(
@@ -19,9 +20,7 @@ class VisitService:
         tenant_id: int,
         current_user_id: Optional[int] = None,
     ):
-        self.db = db
-        self.tenant_id = tenant_id
-        self.current_user_id = current_user_id
+        super().__init__(db, tenant_id, current_user_id)
         self.repo = VisitRepository(db, tenant_id, current_user_id)
 
     # ------------------------------------------------------------------
@@ -62,6 +61,10 @@ class VisitService:
         )
         if not appointment:
             raise ValueError(f"Appointment with id {appointment_id} not found")
+
+        # Check if appointment is already completed
+        if appointment.status == AppointmentStatus.COMPLETED:
+            raise ValueError(f"Appointment {appointment_id} is already completed")
 
         # appointment_id is unique on Visit — guard against double-linking
         existing = self.repo.get_by_appointment(appointment_id)
@@ -129,8 +132,8 @@ class VisitService:
         )
 
         self.db.add(visit)
-        self.db.commit()
-        self.db.refresh(visit)
+        self.commit()
+        self.refresh(visit)
         return visit
 
     def get_visit_with_details(self, visit_id: int) -> Optional[Visit]:
@@ -185,8 +188,6 @@ class VisitService:
 
         # --- nested Pydantic → plain-dict coercion for JSON columns ----------
         if "vitals" in update_data and update_data["vitals"] is not None:
-            # vitals may arrive as a Vitals model instance when coming from
-            # validated VisitUpdate; normalise to a plain dict for the JSON col.
             vitals_raw = update_data["vitals"]
             update_data["vitals"] = (
                 vitals_raw.model_dump() if hasattr(vitals_raw, "model_dump") else vitals_raw
@@ -222,8 +223,8 @@ class VisitService:
         for key, value in update_data.items():
             setattr(visit, key, value)
 
-        self.db.commit()
-        self.db.refresh(visit)
+        self.commit()
+        self.refresh(visit)
         return visit
 
     # ------------------------------------------------------------------
@@ -234,7 +235,7 @@ class VisitService:
         self, patient_id: int, limit: int = 10
     ) -> List[Visit]:
         """Return completed visits for a patient, most recent first."""
-        self._get_patient(patient_id)          # 404-safe validation
+        self._get_patient(patient_id)  # 404-safe validation
         return self.repo.get_patient_history(patient_id, limit=limit)
 
     def complete_visit(self, visit_id: int) -> Optional[Visit]:
@@ -260,8 +261,8 @@ class VisitService:
         visit.status = VisitStatus.COMPLETED
         visit.completed_at = datetime.utcnow()
 
-        self.db.commit()
-        self.db.refresh(visit)
+        self.commit()
+        self.refresh(visit)
         return visit
 
     # ------------------------------------------------------------------

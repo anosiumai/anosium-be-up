@@ -9,7 +9,7 @@ from services.visit_service import VisitService
 from models.user import User, UserRole
 from models.tenant import Tenant
 
-router = APIRouter()
+router = APIRouter()    
 
 @router.post("", response_model=Visit, status_code=status.HTTP_201_CREATED)
 async def create_visit(

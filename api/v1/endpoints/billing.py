@@ -9,7 +9,7 @@ from schemas.billing import (
     Payment, PaymentCreate, PaymentSummary
 )
 from schemas.common import PaginatedResponse, SuccessResponse
-from services.billing_service import BillingService
+from services.billing import BillingService
 from models.user import User, UserRole
 from models.tenant import Tenant
 from models.billing import PaymentStatus

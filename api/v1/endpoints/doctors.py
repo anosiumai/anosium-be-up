@@ -3,15 +3,15 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
 
-from app.api import deps
-from app.schemas.doctor import (
+from api import deps
+from schemas.doctor import (
     Doctor, DoctorCreate, DoctorUpdate, DoctorWithSchedule,
     DoctorAvailability, DoctorStats
 )
-from app.schemas.common import PaginatedResponse, SuccessResponse
-from app.services.doctor_service import DoctorService
-from app.models.user import User, UserRole
-from app.models.tenant import Tenant
+from schemas.common import PaginatedResponse, SuccessResponse
+from services.doctor_service import DoctorService
+from models.user import User, UserRole
+from models.tenant import Tenant
 
 router = APIRouter()
 

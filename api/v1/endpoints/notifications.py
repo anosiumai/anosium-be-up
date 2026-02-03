@@ -2,17 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.api import deps
-from app.schemas.notification import (
+from api import deps
+from schemas.notification import (
     Notification, NotificationCreate, BulkNotificationCreate,
     NotificationTemplate, NotificationTemplateCreate,
     NotificationPreference, NotificationPreferenceUpdate
 )
-from app.schemas.common import PaginatedResponse, SuccessResponse
-from app.services.notification_service import NotificationService
-from app.models.user import User
-from app.models.tenant import Tenant
-from app.models.notification import NotificationStatus, NotificationType
+from schemas.common import PaginatedResponse, SuccessResponse
+from services.notification_service import NotificationService
+from models.user import User
+from models.tenant import Tenant
+from models.notification import NotificationStatus, NotificationType
 
 router = APIRouter()
 

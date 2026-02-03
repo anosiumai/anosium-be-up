@@ -3,14 +3,14 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import date, datetime, timedelta
 
-from app.api import deps
-from app.schemas.analytics import (
+from api import deps
+from schemas.analytics import (
     DashboardStats, DailyMetrics, RevenueReport,
     AppointmentReport, PatientReport
 )
-from app.services.analytics_service import AnalyticsService
-from app.models.user import User, UserRole
-from app.models.tenant import Tenant
+from services.analytics_service import AnalyticsService
+from models.user import User, UserRole
+from models.tenant import Tenant
 
 router = APIRouter()
 

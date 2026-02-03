@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, TYPE_CHECKING
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from datetime import datetime
-from models.audit import AuditAction
+from models.audit import AuditAction  # Import enum from models
 
 if TYPE_CHECKING:
     from schemas.user import User

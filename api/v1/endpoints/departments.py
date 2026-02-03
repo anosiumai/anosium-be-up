@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.api import deps
-from app.schemas.department import (
+from api import deps
+from schemas.department import (
     Department, DepartmentCreate, DepartmentUpdate, DepartmentWithDoctors
 )
-from app.schemas.common import PaginatedResponse, SuccessResponse
-from app.services.department_service import DepartmentService
-from app.models.user import User
-from app.models.tenant import Tenant
+from schemas.common import PaginatedResponse, SuccessResponse
+from services.department_service import DepartmentService
+from models.user import User
+from models.tenant import Tenant
 
 router = APIRouter()
 

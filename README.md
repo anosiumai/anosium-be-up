@@ -351,4 +351,5 @@ For support, email support@anosuim.com or open an issue.
 
 ---
 
-Built with ❤️ using FastAPI and modern Python
+Built with ❤️ using FastAPI and modern Python by @Bridge Homies
+https://app.coderabbit.ai/login???free-trial

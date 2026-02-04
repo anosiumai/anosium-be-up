@@ -347,7 +347,7 @@ This project is proprietary software. All rights reserved.
 
 ## 📞 Support
 
-For support, email support@clinic-saas.com or open an issue.
+For support, email support@anosuim.com or open an issue.
 
 ---
 

@@ -15,16 +15,29 @@ from core.config import settings
 logger = logging.getLogger(__name__)
 
 # Create SQLAlchemy engine
-engine = create_engine(
-    settings.DATABASE_URL,
-    poolclass=QueuePool if settings.ENVIRONMENT == "production" else NullPool,
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
-    pool_timeout=settings.DATABASE_POOL_TIMEOUT,
-    pool_recycle=settings.DATABASE_POOL_RECYCLE,
-    pool_pre_ping=True,  # Verify connections before using them
-    echo=settings.DEBUG,  # Log SQL queries in debug mode
-)
+engine_kwargs = {
+    "echo": settings.DEBUG,
+    "pool_pre_ping": True,
+}
+
+if settings.ENVIRONMENT == "production":
+    engine_kwargs.update(
+        {
+            "poolclass": QueuePool,
+            "pool_size": settings.DATABASE_POOL_SIZE,
+            "max_overflow": settings.DATABASE_MAX_OVERFLOW,
+            "pool_timeout": settings.DATABASE_POOL_TIMEOUT,
+            "pool_recycle": settings.DATABASE_POOL_RECYCLE,
+        }
+    )
+else:
+    engine_kwargs.update(
+        {
+            "poolclass": NullPool,
+        }
+    )
+
+engine = create_engine(settings.DATABASE_URL, **engine_kwargs)
 
 # Create SessionLocal class
 SessionLocal = sessionmaker(
@@ -100,9 +113,11 @@ def init_db():
         from models import (
             tenant, user, patient, doctor, department,
             appointment, visit, service, billing,
-            ai_lead, notification, audit, analytics,
-            security, compliance, backup, integration
+            ai_lead, notification, audit, analytics  # ✅ Only existing models
         )
+       
+        # Remove these - they don't exist:
+        # security, compliance, backup, integration
         
         # Create all tables
         Base.metadata.create_all(bind=engine)

@@ -1,61 +1,78 @@
-# models/audit.py
+"""
+Audit Models
+SQLAlchemy models for audit logging and HIPAA compliance
+"""
 
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List, TYPE_CHECKING
+from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Enum, Text
+from sqlalchemy.orm import relationship
 from datetime import datetime
-from audit import AuditAction
+import enum
 
-if TYPE_CHECKING:
-    from models.user import User
-    from models.patient import Patient
+from core.database import Base
 
 
-class AuditLogBase(BaseModel):
-    action: AuditAction
-    resource_type: str
-    resource_id: int
-    old_values: Optional[Dict[str, Any]] = None
-    new_values: Optional[Dict[str, Any]] = None
-    changes_summary: Optional[str] = None
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    reason: Optional[str] = None
-    notes: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-
-class AuditLogInDB(AuditLogBase):
-    id: int
-    tenant_id: int
-    user_id: Optional[int]
-    request_id: Optional[str]
-    created_at: datetime
+class AuditAction(str, enum.Enum):
+    """Audit action types"""
+    CREATE = "create"
+    READ = "read"
+    UPDATE = "update"
+    DELETE = "delete"
+    LOGIN = "login"
+    LOGOUT = "logout"
+    EXPORT = "export"
+    IMPORT = "import"
+    SHARE = "share"
+    DOWNLOAD = "download"
+    PRINT = "print"
 
 
-class AuditLog(AuditLogInDB):
-    user: Optional["User"] = None
+class AuditLog(Base):
+    """Audit log for tracking all system actions"""
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    
+    action = Column(Enum(AuditAction), nullable=False, index=True)
+    resource_type = Column(String(100), nullable=False, index=True)
+    resource_id = Column(Integer, nullable=False, index=True)
+    
+    old_values = Column(JSON, nullable=True)
+    new_values = Column(JSON, nullable=True)
+    changes_summary = Column(Text, nullable=True)
+    
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    request_id = Column(String(100), nullable=True, index=True)
+    
+    reason = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # ✅ FIX: Add viewonly=True to prevent requiring back_populates
+    tenant = relationship("Tenant", foreign_keys=[tenant_id], viewonly=True)
+    user = relationship("User", foreign_keys=[user_id], viewonly=True)
 
 
-class DataAccessLogBase(BaseModel):
-    access_type: str
-    accessed_fields: Optional[List[str]] = None
-    purpose: Optional[str] = None
-    ip_address: Optional[str] = None
+class DataAccessLog(Base):
+    """Log for tracking access to sensitive patient data (HIPAA compliance)"""
+    __tablename__ = "data_access_logs"
 
-    class Config:
-        from_attributes = True
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    
+    access_type = Column(String(50), nullable=False)
+    accessed_fields = Column(JSON, nullable=True)
+    purpose = Column(Text, nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    
+    accessed_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
-
-class DataAccessLogInDB(DataAccessLogBase):
-    id: int
-    tenant_id: int
-    user_id: int
-    patient_id: int
-    accessed_at: datetime
-
-
-class DataAccessLog(DataAccessLogInDB):
-    user: Optional["User"] = None
-    patient: Optional["Patient"] = None
+    # ✅ FIX: Add viewonly=True to prevent requiring back_populates
+    tenant = relationship("Tenant", foreign_keys=[tenant_id], viewonly=True)
+    user = relationship("User", foreign_keys=[user_id], viewonly=True)
+    patient = relationship("Patient", foreign_keys=[patient_id], viewonly=True)

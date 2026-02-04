@@ -61,7 +61,7 @@ class Tenant(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Relationships
+    # ✅ RELATIONSHIPS - ONLY THE ORIGINAL ONES
     users = relationship("User", back_populates="tenant", cascade="all, delete-orphan")
     patients = relationship("Patient", back_populates="tenant", cascade="all, delete-orphan")
     doctors = relationship("Doctor", back_populates="tenant", cascade="all, delete-orphan")

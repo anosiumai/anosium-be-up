@@ -42,9 +42,17 @@ class User(Base):
     last_login = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+
     # Relationships
     tenant = relationship("Tenant", back_populates="users")
+
+    audit_logs = relationship("AuditLog", back_populates="user")
+    data_access_logs = relationship("DataAccessLog", back_populates="user")
+    appointments_created = relationship("Appointment", foreign_keys="[Appointment.created_by]")
+    invoices_created = relationship("Invoice", foreign_keys="[Invoice.created_by]")
+    payments_created = relationship("Payment", foreign_keys="[Payment.created_by]")
+
+
     doctor_profile = relationship("Doctor", back_populates="user", uselist=False)
 
     @property

@@ -68,6 +68,8 @@ class Patient(Base):
     invoices = relationship("Invoice", back_populates="patient", cascade="all, delete-orphan")
     ai_leads = relationship("AILead", back_populates="patient")
 
+    data_access_logs = relationship("DataAccessLog", back_populates="patient")
+
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}"

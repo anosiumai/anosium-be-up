@@ -1,11 +1,13 @@
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List, TYPE_CHECKING
-from datetime import datetime
-from models.audit import AuditAction  # Import enum from models
+"""
+Audit Schemas
+Pydantic schemas for audit log API validation
+"""
 
-if TYPE_CHECKING:
-    from schemas.user import User
-    from schemas.patient import Patient
+from pydantic import BaseModel, Field  # ✅
+from typing import Optional, Dict, Any, List  # ✅
+from datetime import datetime  # ✅
+from models.audit import AuditAction  # ✅ Import enum from models
+
 
 class AuditLogBase(BaseModel):
     """Base audit log schema"""
@@ -23,6 +25,7 @@ class AuditLogBase(BaseModel):
     class Config:
         from_attributes = True
 
+
 class AuditLogInDB(AuditLogBase):
     """Audit log from database"""
     id: int
@@ -31,9 +34,11 @@ class AuditLogInDB(AuditLogBase):
     request_id: Optional[str]
     created_at: datetime
 
+
 class AuditLog(AuditLogInDB):
     """Public audit log schema"""
-    user: Optional['User'] = None
+    pass
+
 
 class DataAccessLogBase(BaseModel):
     """Base data access log schema"""
@@ -45,6 +50,7 @@ class DataAccessLogBase(BaseModel):
     class Config:
         from_attributes = True
 
+
 class DataAccessLogInDB(DataAccessLogBase):
     """Data access log from database"""
     id: int
@@ -53,7 +59,7 @@ class DataAccessLogInDB(DataAccessLogBase):
     patient_id: int
     accessed_at: datetime
 
+
 class DataAccessLog(DataAccessLogInDB):
     """Public data access log schema"""
-    user: Optional['User'] = None
-    patient: Optional['Patient'] = None
+    pass

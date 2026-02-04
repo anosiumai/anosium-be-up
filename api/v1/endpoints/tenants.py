@@ -2,15 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.api import deps
-from app.schemas.tenant import (
+from api import deps
+from schemas.tenant import (
     Tenant, TenantCreate, TenantUpdate, TenantWithStats,
     SubscriptionUpdate
 )
-from app.schemas.common import PaginatedResponse, SuccessResponse
-from app.services.tenant_service import TenantService
-from app.models.user import User, UserRole
-from app.models.tenant import SubscriptionTier, SubscriptionStatus
+from schemas.common import PaginatedResponse, SuccessResponse
+from services.tenant_service import TenantService
+from models.user import User, UserRole
+from models.tenant import SubscriptionTier, SubscriptionStatus
 
 router = APIRouter()
 

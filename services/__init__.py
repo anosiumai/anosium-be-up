@@ -7,7 +7,7 @@ from .department_service import DepartmentService
 from .appointment_service import AppointmentService
 from .visit_service import VisitService
 from .service_service import ServiceManagementService
-from .billing_service import BillingService
+from .billing import BillingService
 from .ai_lead_service import AILeadService
 from .notification_service import NotificationService
 from .analytics_service import AnalyticsService

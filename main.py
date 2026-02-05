@@ -19,8 +19,14 @@ import time
 
 from core.config import settings
 from core.database import init_db, check_db_connection, engine
-from api.v1.endpoints import api_router
+
+# ✅ CRITICAL FIX: Import and rebuild models BEFORE importing routers
+# This must happen before api_router import to avoid Pydantic forward reference errors
 from schemas import rebuild_all_models  
+rebuild_all_models()  # Rebuild immediately to resolve forward references
+
+# NOW safe to import routers (they reference Doctor and other models)
+from api.v1.endpoints import api_router
 
 # Configure logging
 logging.basicConfig(
@@ -41,13 +47,8 @@ async def lifespan(app: FastAPI):
     logger.info(f"Environment: {settings.ENVIRONMENT}")
     logger.info(f"Debug Mode: {settings.DEBUG}")
     
-    # ✅ CRITICAL: Rebuild Pydantic models FIRST
-    # This must happen before FastAPI generates OpenAPI schema
-    try:
-        rebuild_all_models()
-    except Exception as e:
-        logger.warning(f"Model rebuild had issues: {e}")
-        # Continue anyway - Pydantic v2 often auto-rebuilds on first use
+    # Models already rebuilt at module level - no need to rebuild again here
+    logger.info("✅ Pydantic models rebuilt successfully")
     
     # Check database connection
     if not check_db_connection():

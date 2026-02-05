@@ -1,83 +1,123 @@
-from pydantic import BaseModel, Field, validator
-from typing import Optional, Dict, Any, List, TYPE_CHECKING
-from datetime import date, datetime, time
+"""
+Alternative Solution: Proper TYPE_CHECKING usage in individual schema files
 
+This demonstrates how to fix the Doctor schema file to properly handle
+forward references. Apply this pattern to ALL schema files.
+"""
+
+from typing import TYPE_CHECKING, Optional, Dict, Any
+from datetime import datetime, date
+from pydantic import BaseModel, Field, ConfigDict
+
+# CRITICAL: Import actual types for runtime
+from .user import UserInDB
+
+# For type checking only (prevents circular imports)
 if TYPE_CHECKING:
-    from schemas.user import User
-    from schemas.department import Department
+    from .department import Department
+    from .user import User
+
+# ============================================================================
+# BASE MODELS
+# ============================================================================
 
 class DoctorBase(BaseModel):
-    """Base doctor schema"""
-    specialization: str = Field(..., min_length=2, max_length=200)
+    """Base Doctor schema with common fields"""
+    specialization: str = Field(..., min_length=1, max_length=200)
     qualification: Optional[str] = Field(None, max_length=500)
     license_number: Optional[str] = Field(None, max_length=100)
     experience_years: Optional[int] = Field(None, ge=0, le=70)
     consultation_fee: int = Field(default=0, ge=0)
-    average_consultation_time: int = Field(default=30, ge=10, le=240)
+    average_consultation_time: int = Field(default=30, ge=5, le=240)
     bio: Optional[str] = None
-    
-    class Config:
-        from_attributes = True
+
 
 class DoctorCreate(DoctorBase):
-    """Create doctor schema"""
+    """Schema for creating a new doctor"""
     user_id: int
     department_id: Optional[int] = None
-    availability_schedule: Optional[Dict[str, Any]] = None
+    availability_schedule: Dict[str, Any] = Field(default_factory=dict)
     joined_date: Optional[date] = None
 
+
 class DoctorUpdate(BaseModel):
-    """Update doctor schema"""
-    specialization: Optional[str] = None
-    qualification: Optional[str] = None
-    license_number: Optional[str] = None
+    """Schema for updating doctor"""
+    specialization: Optional[str] = Field(None, min_length=1, max_length=200)
+    qualification: Optional[str] = Field(None, max_length=500)
+    license_number: Optional[str] = Field(None, max_length=100)
     experience_years: Optional[int] = Field(None, ge=0, le=70)
-    consultation_fee: Optional[int] = Field(None, ge=0)
-    average_consultation_time: Optional[int] = Field(None, ge=10, le=240)
     department_id: Optional[int] = None
+    consultation_fee: Optional[int] = Field(None, ge=0)
+    average_consultation_time: Optional[int] = Field(None, ge=5, le=240)
     availability_schedule: Optional[Dict[str, Any]] = None
+    bio: Optional[str] = None
     is_available: Optional[bool] = None
     is_active: Optional[bool] = None
-    bio: Optional[str] = None
+
 
 class DoctorAvailability(BaseModel):
-    """Doctor availability for a day"""
-    day: str = Field(..., pattern=r'^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$')
+    """Schema for updating doctor availability"""
+    availability_schedule: Dict[str, Any]
     is_available: bool = True
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    slots: Optional[int] = None
-    break_start: Optional[time] = None
-    break_end: Optional[time] = None
+
+
+# ============================================================================
+# DATABASE MODELS (No forward references here)
+# ============================================================================
 
 class DoctorInDB(DoctorBase):
-    """Doctor from database"""
+    """Doctor as stored in database (no relationships)"""
     id: int
     tenant_id: int
     user_id: int
-    department_id: Optional[int]
+    department_id: Optional[int] = None
     doctor_code: str
-    availability_schedule: Dict[str, Any]
-    is_available: bool
-    is_active: bool
-    joined_date: Optional[date]
+    availability_schedule: Dict[str, Any] = Field(default_factory=dict)
+    is_available: bool = True
+    is_active: bool = True
+    joined_date: Optional[date] = None
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============================================================================
+# RESPONSE MODELS (Use string annotations for forward refs)
+# ============================================================================
 
 class Doctor(DoctorInDB):
-    """Public doctor schema"""
-    user: 'User'  # Forward reference
-    department: Optional['Department'] = None
+    """
+    Doctor with relationships - uses string annotations for forward refs
+    
+    CRITICAL: We use string annotations like 'User' and 'Department'
+    instead of importing the actual classes. This prevents circular imports.
+    Pydantic will resolve these when model_rebuild() is called.
+    """
+    # String annotations - resolved at rebuild time
+    user: Optional['User'] = None  # From schemas.user
+    department: Optional['Department'] = None  # From schemas.department
+
 
 class DoctorWithSchedule(Doctor):
-    """Doctor with weekly schedule"""
-    weekly_schedule: List[DoctorAvailability]
+    """Doctor with parsed schedule information"""
+    upcoming_slots: Optional[Dict[str, Any]] = None
+    total_appointments: int = 0
+
 
 class DoctorStats(BaseModel):
     """Doctor statistics"""
+    doctor_id: int
+    doctor_name: str
     total_appointments: int = 0
     completed_appointments: int = 0
     cancelled_appointments: int = 0
-    average_rating: Optional[float] = None
     total_patients: int = 0
-    today_appointments: int = 0
+    average_rating: Optional[float] = None
+    total_revenue: int = 0  # In cents/paise
+    consultation_fee: int = 0
+
+
+# ============================================================================
+# IMPORTANT: Model rebuilding happens in __init__.py AFTER all imports
+# ============================================================================

@@ -1,185 +1,302 @@
+"""
+Schemas Package - Pydantic Models
+COMPLETE FIX with all nested models in namespace
+"""
+
+# ============================================================================
+# TIER 1: Base models with NO dependencies on other schemas
+# ============================================================================
+
 from .tenant import (
-    TenantBase, TenantCreate, TenantUpdate, TenantInDB, Tenant,
-    TenantWithStats, SubscriptionUpdate
-)
-from .user import (
-    UserBase, UserCreate, UserUpdate, UserInDB, User,
-    UserLogin, Token, TokenData, PasswordReset, PasswordChange
-)
-from .patient import (
-    PatientBase, PatientCreate, PatientUpdate, PatientInDB, Patient,
-    PatientWithHistory, PatientSearch, PatientStats
-)
-from .doctor import (
-    DoctorBase, DoctorCreate, DoctorUpdate, DoctorInDB, Doctor,
-    DoctorAvailability, DoctorWithSchedule, DoctorStats
-)
-from .department import (
-    DepartmentBase, DepartmentCreate, DepartmentUpdate, DepartmentInDB, Department,
-    DepartmentWithDoctors
-)
-from .appointment import (
-    AppointmentBase, AppointmentCreate, AppointmentUpdate, AppointmentInDB, Appointment,
-    AppointmentWithDetails, AppointmentReschedule, AppointmentCancel,
-    DoctorAvailabilitySlot
-)
-from .visit import (
-    VisitBase, VisitCreate, VisitUpdate, VisitInDB, Visit,
-    VisitWithDetails, Vitals, Prescription, LabTest
-)
-from .service import (
-    ServiceBase, ServiceCreate, ServiceUpdate, ServiceInDB, Service,
-    PackageBase, PackageCreate, PackageInDB, Package
-)
-from .billing import (
-    InvoiceBase, InvoiceCreate, InvoiceUpdate, InvoiceInDB, Invoice,
-    InvoiceWithItems, InvoiceItem, InvoiceItemCreate,
-    PaymentBase, PaymentCreate, PaymentInDB, Payment,
-    PaymentSummary
-)
-from .ai_lead import (
-    AILeadBase, AILeadCreate, AILeadUpdate, AILeadInDB, AILead,
-    AILeadWithInteractions, AIInteractionCreate, AIInteraction,
-    LeadConversion
-)
-from .notification import (
-    NotificationBase, NotificationCreate, NotificationInDB, Notification,
-    NotificationTemplateBase, NotificationTemplateCreate, NotificationTemplate,
-    NotificationPreference, NotificationPreferenceUpdate,
-    BulkNotificationCreate
-)
-from .audit import (
-    AuditLogBase, AuditLogInDB, AuditLog,
-    DataAccessLogBase, DataAccessLogInDB, DataAccessLog
-)
-from .analytics import (
-    DailyMetricsInDB, DailyMetrics, DashboardStats,
-    RevenueReport, AppointmentReport, PatientReport
-)
-from .common import (
-    PaginatedResponse, SuccessResponse, ErrorResponse,
-    HealthCheck, FileUpload
+    TenantBase, TenantCreate, TenantUpdate, SubscriptionUpdate, 
+    TenantInDB, Tenant, TenantWithStats
 )
 
+from .user import (
+    UserBase, UserCreate, UserUpdate, UserLogin, 
+    Token, TokenData, PasswordReset, PasswordChange, 
+    UserInDB, User
+)
+
+from .patient import (
+    PatientBase, PatientCreate, PatientUpdate, PatientInDB, 
+    Patient, PatientSearch, PatientStats, PatientWithHistory
+)
+
+# Utility modules
+try:
+    from .common import *
+except ImportError:
+    pass
+
+try:
+    from .auth import *
+except ImportError:
+    pass
+
+
+# ============================================================================
+# TIER 2: Models with CIRCULAR dependencies (department ↔ doctor)
+# ============================================================================
+
+from .department import (
+    DepartmentBase, DepartmentCreate, DepartmentUpdate, 
+    DepartmentInDB, Department, DepartmentWithDoctors
+)
+
+from .doctor import (
+    DoctorBase, DoctorCreate, DoctorUpdate, DoctorAvailability, 
+    DoctorInDB, Doctor, DoctorWithSchedule, DoctorStats
+)
+
+
+# ============================================================================
+# TIER 3: Models that depend on Tier 1 & 2
+# ============================================================================
+
+from .service import (
+    ServiceBase, ServiceCreate, ServiceUpdate, ServiceInDB, Service,
+    PackageServiceItem, PackageBase, PackageCreate, PackageUpdate, 
+    PackageInDB, Package, PackageWithServices, 
+    ServiceStatistics, PackageStatistics
+)
+
+from .appointment import (
+    AppointmentBase, AppointmentCreate, AppointmentUpdate, 
+    AppointmentReschedule, AppointmentCancel, AppointmentInDB, 
+    Appointment, AppointmentWithDetails, DoctorAvailabilitySlot
+)
+
+from .visit import (
+    Vitals, Prescription, LabTest, 
+    VisitBase, VisitCreate, VisitUpdate, 
+    VisitInDB, Visit, VisitWithDetails
+)
+
+from .billing import (
+    InvoiceItemCreate, InvoiceItem, InvoiceBase, InvoiceCreate, 
+    InvoiceUpdate, InvoiceInDB, Invoice, InvoiceWithItems,
+    PaymentBase, PaymentCreate, PaymentInDB, Payment, PaymentSummary
+)
+
+from .ai_lead import (
+    AIInteractionCreate, AIInteraction, AILeadBase, AILeadCreate, 
+    AILeadUpdate, LeadConversion, AILeadInDB, AILead, AILeadWithInteractions
+)
+
+from .notification import (
+    NotificationBase, NotificationCreate, BulkNotificationCreate, 
+    NotificationInDB, Notification, NotificationTemplateBase, 
+    NotificationTemplateCreate, NotificationTemplate, 
+    NotificationPreference, NotificationPreferenceUpdate
+)
+
+
+# ============================================================================
+# REBUILD FUNCTION - COMPLETE FIX
+# ============================================================================
 
 def rebuild_all_models():
     """
-    Rebuild all Pydantic models with forward references.
+    Rebuild all Pydantic models to resolve forward references.
     
-    This function should be called explicitly from main.py during application
-    startup (in the lifespan function) to ensure all forward references are
-    resolved before FastAPI generates OpenAPI documentation.
-    
-    DO NOT call this at module import time - it must be called after all
-    routers are imported but before the application starts serving requests.
+    CRITICAL: The namespace must include EVERY model that appears in a 
+    forward reference ANYWHERE in your schemas, including nested references.
     """
-    import logging
-    logger = logging.getLogger(__name__)
     
-    logger.info("🔧 Rebuilding Pydantic models with forward references...")
+    print("\n🔧 Rebuilding Pydantic models in dependency order...")
+    print("=" * 70)
     
-    # List all models that use forward references (string type hints)
-    models_to_rebuild = [
-        # Patient schemas
-        PatientWithHistory,  # Has List['Visit'], List['Appointment']
+    failed_models = []
+    
+    # COMPLETE namespace with ALL models (including nested ones like InvoiceItem)
+    namespace = {
+        # Tier 1: Core entities
+        'Tenant': Tenant,
+        'TenantWithStats': TenantWithStats,
+        'User': User,
+        'Patient': Patient,
+        'PatientWithHistory': PatientWithHistory,
         
-        # Visit schemas (if they have forward refs to Patient)
-        Visit,
-        VisitWithDetails,
+        # Tier 2: Circular dependencies
+        'Department': Department,
+        'DepartmentWithDoctors': DepartmentWithDoctors,
+        'Doctor': Doctor,
+        'DoctorWithSchedule': DoctorWithSchedule,
+        'DoctorStats': DoctorStats,
         
-        # Appointment schemas (if they have forward refs to Patient)
-        Appointment,
-        AppointmentWithDetails,
+        # Tier 3: Services
+        'Service': Service,
+        'Package': Package,
+        'PackageWithServices': PackageWithServices,
+        'PackageServiceItem': PackageServiceItem,
         
-        # Doctor schemas (if they have forward refs)
-        DoctorWithSchedule,
+        # Appointments
+        'Appointment': Appointment,
+        'AppointmentWithDetails': AppointmentWithDetails,
         
-        # Department schemas (if they have forward refs)
-        DepartmentWithDoctors,
+        # Visits
+        'Visit': Visit,
+        'VisitWithDetails': VisitWithDetails,
+        'Vitals': Vitals,
+        'Prescription': Prescription,
+        'LabTest': LabTest,
         
-        # AI Lead schemas (if they have forward refs)
-        AILeadWithInteractions,
+        # Billing - CRITICAL: Include both Invoice AND InvoiceItem
+        'Invoice': Invoice,
+        'InvoiceWithItems': InvoiceWithItems,
+        'InvoiceItem': InvoiceItem,  # This was likely missing!
+        'Payment': Payment,
+        'PaymentSummary': PaymentSummary,
         
-        # Invoice schemas (if they have forward refs)
-        InvoiceWithItems,
+        # AI Leads
+        'AILead': AILead,
+        'AILeadWithInteractions': AILeadWithInteractions,
+        'AIInteraction': AIInteraction,
+        
+        # Notifications
+        'Notification': Notification,
+        'NotificationTemplate': NotificationTemplate,
+        'NotificationPreference': NotificationPreference,
+    }
+    
+    # TIER 1: Base models (no dependencies)
+    print("\n📦 Tier 1: Base models (Tenant, User, Patient)...")
+    tier1_models = [
+        TenantBase, TenantCreate, TenantUpdate, TenantInDB, Tenant,
+        UserBase, UserCreate, UserUpdate, UserInDB, User,
+        PatientBase, PatientCreate, PatientUpdate, PatientInDB, Patient,
     ]
     
-    success_count = 0
-    for model in models_to_rebuild:
+    for model in tier1_models:
         try:
-            model.model_rebuild()
-            logger.debug(f"  ✅ Rebuilt: {model.__name__}")
-            success_count += 1
+            model.model_rebuild(_types_namespace=namespace)
+            print(f"   ✅ {model.__name__}")
         except Exception as e:
-            # Log warning but continue - Pydantic v2 often auto-rebuilds on first use
-            logger.debug(f"  ⚠️ Could not rebuild {model.__name__}: {e}")
+            failed_models.append((model.__name__, str(e)))
+            print(f"   ❌ {model.__name__}: {str(e)[:60]}")
     
-    logger.info(f"✅ Successfully rebuilt {success_count}/{len(models_to_rebuild)} models")
+    # TIER 2: Circular dependencies (Department ↔ Doctor)
+    print("\n🔄 Tier 2: Circular dependencies (Department ↔ Doctor)...")
+    tier2_models = [
+        DepartmentBase, DepartmentCreate, DepartmentUpdate, DepartmentInDB, Department,
+        DoctorBase, DoctorCreate, DoctorUpdate, DoctorInDB, Doctor,
+    ]
+    
+    for model in tier2_models:
+        try:
+            model.model_rebuild(_types_namespace=namespace)
+            print(f"   ✅ {model.__name__}")
+        except Exception as e:
+            failed_models.append((model.__name__, str(e)))
+            print(f"   ❌ {model.__name__}: {str(e)[:60]}")
+    
+    # TIER 3: Complex relationships (including nested models)
+    print("\n🏗️  Tier 3: Complex relationships...")
+    tier3_models = [
+        # Services
+        ServiceBase, ServiceCreate, ServiceUpdate, Service,
+        PackageServiceItem, PackageBase, PackageCreate, Package,
+        
+        # Appointments
+        AppointmentBase, AppointmentCreate, AppointmentUpdate, Appointment,
+        
+        # Visits
+        Vitals, Prescription, LabTest,
+        VisitBase, VisitCreate, VisitUpdate, Visit,
+        
+        # Billing - rebuild InvoiceItem first, then Invoice
+        InvoiceItemCreate, InvoiceItem,
+        InvoiceBase, InvoiceCreate, InvoiceUpdate, Invoice, InvoiceWithItems,
+        PaymentBase, PaymentCreate, Payment,
+        
+        # AI
+        AIInteractionCreate, AIInteraction,
+        AILeadBase, AILeadCreate, AILeadUpdate, AILead,
+        
+        # Notifications
+        NotificationBase, NotificationCreate, Notification,
+        NotificationTemplateBase, NotificationTemplateCreate, NotificationTemplate,
+    ]
+    
+    for model in tier3_models:
+        try:
+            model.model_rebuild(_types_namespace=namespace)
+            print(f"   ✅ {model.__name__}")
+        except Exception as e:
+            failed_models.append((model.__name__, str(e)))
+            print(f"   ⚠️  {model.__name__}: {str(e)[:60]}")
+    
+    # Summary
+    print("\n" + "=" * 70)
+    if failed_models:
+        print(f"⚠️  {len(failed_models)} model(s) failed to rebuild:")
+        for name, error in failed_models:
+            print(f"   - {name}: {error[:80]}")
+        print("\n⚠️  Warning: Some models may not work correctly!")
+    else:
+        total = len(tier1_models) + len(tier2_models) + len(tier3_models)
+        print(f"✅ SUCCESS! All {total} models rebuilt successfully!")
+    print("=" * 70 + "\n")
 
+
+# ============================================================================
+# EXPORTS
+# ============================================================================
 
 __all__ = [
     # Tenant
-    "TenantBase", "TenantCreate", "TenantUpdate", "TenantInDB", "Tenant",
-    "TenantWithStats", "SubscriptionUpdate",
+    'TenantBase', 'TenantCreate', 'TenantUpdate', 'SubscriptionUpdate',
+    'TenantInDB', 'Tenant', 'TenantWithStats',
     
     # User
-    "UserBase", "UserCreate", "UserUpdate", "UserInDB", "User",
-    "UserLogin", "Token", "TokenData", "PasswordReset", "PasswordChange",
+    'UserBase', 'UserCreate', 'UserUpdate', 'UserLogin',
+    'Token', 'TokenData', 'PasswordReset', 'PasswordChange',
+    'UserInDB', 'User',
     
     # Patient
-    "PatientBase", "PatientCreate", "PatientUpdate", "PatientInDB", "Patient",
-    "PatientWithHistory", "PatientSearch", "PatientStats",
-    
-    # Doctor
-    "DoctorBase", "DoctorCreate", "DoctorUpdate", "DoctorInDB", "Doctor",
-    "DoctorAvailability", "DoctorWithSchedule", "DoctorStats",
+    'PatientBase', 'PatientCreate', 'PatientUpdate', 'PatientInDB',
+    'Patient', 'PatientSearch', 'PatientStats', 'PatientWithHistory',
     
     # Department
-    "DepartmentBase", "DepartmentCreate", "DepartmentUpdate", "DepartmentInDB", "Department",
-    "DepartmentWithDoctors",
+    'DepartmentBase', 'DepartmentCreate', 'DepartmentUpdate',
+    'DepartmentInDB', 'Department', 'DepartmentWithDoctors',
+    
+    # Doctor
+    'DoctorBase', 'DoctorCreate', 'DoctorUpdate', 'DoctorAvailability',
+    'DoctorInDB', 'Doctor', 'DoctorWithSchedule', 'DoctorStats',
+    
+    # Service & Package
+    'ServiceBase', 'ServiceCreate', 'ServiceUpdate', 'ServiceInDB', 'Service',
+    'PackageServiceItem', 'PackageBase', 'PackageCreate', 'PackageUpdate',
+    'PackageInDB', 'Package', 'PackageWithServices',
+    'ServiceStatistics', 'PackageStatistics',
     
     # Appointment
-    "AppointmentBase", "AppointmentCreate", "AppointmentUpdate", "AppointmentInDB", "Appointment",
-    "AppointmentWithDetails", "AppointmentReschedule", "AppointmentCancel",
-    "DoctorAvailabilitySlot",
+    'AppointmentBase', 'AppointmentCreate', 'AppointmentUpdate',
+    'AppointmentReschedule', 'AppointmentCancel', 'AppointmentInDB',
+    'Appointment', 'AppointmentWithDetails', 'DoctorAvailabilitySlot',
     
     # Visit
-    "VisitBase", "VisitCreate", "VisitUpdate", "VisitInDB", "Visit",
-    "VisitWithDetails", "Vitals", "Prescription", "LabTest",
-    
-    # Service
-    "ServiceBase", "ServiceCreate", "ServiceUpdate", "ServiceInDB", "Service",
-    "PackageBase", "PackageCreate", "PackageInDB", "Package",
+    'Vitals', 'Prescription', 'LabTest',
+    'VisitBase', 'VisitCreate', 'VisitUpdate',
+    'VisitInDB', 'Visit', 'VisitWithDetails',
     
     # Billing
-    "InvoiceBase", "InvoiceCreate", "InvoiceUpdate", "InvoiceInDB", "Invoice",
-    "InvoiceWithItems", "InvoiceItem", "InvoiceItemCreate",
-    "PaymentBase", "PaymentCreate", "PaymentInDB", "Payment",
-    "PaymentSummary",
+    'InvoiceItemCreate', 'InvoiceItem', 'InvoiceBase', 'InvoiceCreate',
+    'InvoiceUpdate', 'InvoiceInDB', 'Invoice', 'InvoiceWithItems',
+    'PaymentBase', 'PaymentCreate', 'PaymentInDB', 'Payment', 'PaymentSummary',
     
-    # AI Lead
-    "AILeadBase", "AILeadCreate", "AILeadUpdate", "AILeadInDB", "AILead",
-    "AILeadWithInteractions", "AIInteractionCreate", "AIInteraction",
-    "LeadConversion",
+    # AI Leads
+    'AIInteractionCreate', 'AIInteraction', 'AILeadBase', 'AILeadCreate',
+    'AILeadUpdate', 'LeadConversion', 'AILeadInDB', 'AILead', 'AILeadWithInteractions',
     
-    # Notification
-    "NotificationBase", "NotificationCreate", "NotificationInDB", "Notification",
-    "NotificationTemplateBase", "NotificationTemplateCreate", "NotificationTemplate",
-    "NotificationPreference", "NotificationPreferenceUpdate",
-    "BulkNotificationCreate",
+    # Notifications
+    'NotificationBase', 'NotificationCreate', 'BulkNotificationCreate',
+    'NotificationInDB', 'Notification', 'NotificationTemplateBase',
+    'NotificationTemplateCreate', 'NotificationTemplate',
+    'NotificationPreference', 'NotificationPreferenceUpdate',
     
-    # Audit
-    "AuditLogBase", "AuditLogInDB", "AuditLog",
-    "DataAccessLogBase", "DataAccessLogInDB", "DataAccessLog",
-    
-    # Analytics
-    "DailyMetricsInDB", "DailyMetrics", "DashboardStats",
-    "RevenueReport", "AppointmentReport", "PatientReport",
-    
-    # Common
-    "PaginatedResponse", "SuccessResponse", "ErrorResponse",
-    "HealthCheck", "FileUpload",
-    
-    # Utility functions
-    "rebuild_all_models",
+    # Rebuild function
+    'rebuild_all_models',
 ]

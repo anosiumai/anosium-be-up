@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from api import deps
 from schemas.department import (
-    Department, DepartmentCreate, DepartmentUpdate, DepartmentWithDoctors
+    Department, DepartmentCreate, DepartmentUpdate
+    # ❌ REMOVED: DepartmentWithDoctors - moved to runtime import
 )
 from schemas.common import PaginatedResponse, SuccessResponse
 from services.department_service import DepartmentService
@@ -63,15 +64,18 @@ async def list_departments(
         total_pages=(result["total"] + pagination["page_size"] - 1) // pagination["page_size"]
     )
 
-@router.get("/{department_id}", response_model=DepartmentWithDoctors)
+# ✅ FIXED: Lazy response model for DepartmentWithDoctors
+@router.get("/{department_id}", response_model=None)
 async def get_department(
     department_id: int,
     current_user: User = Depends(deps.get_current_user),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
-):
+) -> Any:
     """
     Get department with doctors list
+    
+    **Returns:** DepartmentWithDoctors (validated at runtime)
     """
     service = DepartmentService(db, current_tenant.id, current_user.id)
     department = service.get_department_with_doctors(department_id)
@@ -82,7 +86,9 @@ async def get_department(
             detail="Department not found"
         )
     
-    return department
+    # Import and validate at runtime
+    from schemas.department import DepartmentWithDoctors
+    return DepartmentWithDoctors.model_validate(department)
 
 @router.put("/{department_id}", response_model=Department)
 async def update_department(

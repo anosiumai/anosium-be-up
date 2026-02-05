@@ -1,10 +1,12 @@
+# DEFINITIVE SOLUTION: Fix patient.py router endpoint
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any  # ← Add Any
 
 from api import deps
 from schemas.patient import (
-    Patient, PatientCreate, PatientUpdate, PatientWithHistory,
+    Patient, PatientCreate, PatientUpdate,  # ← Remove PatientWithHistory from here
     PatientSearch, PatientStats
 )
 from schemas.common import PaginatedResponse, SuccessResponse
@@ -90,13 +92,14 @@ async def get_patient(
     
     return patient
 
-@router.get("/{patient_id}/history", response_model=PatientWithHistory)
+# ✅ FIXED: Use lazy response model to avoid forward reference issues
+@router.get("/{patient_id}/history", response_model=None)
 async def get_patient_history(
     patient_id: int,
     current_user: User = Depends(deps.get_current_user),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
-):
+) -> Any:  # ← Changed from PatientWithHistory to Any
     """
     Get patient with complete medical history
     
@@ -104,6 +107,8 @@ async def get_patient_history(
     - Recent visits
     - Upcoming appointments
     - Statistics
+    
+    **Returns:** PatientWithHistory schema (validated at runtime)
     """
     service = PatientService(db, current_tenant.id, current_user.id)
     patient_history = service.get_patient_with_history(patient_id)
@@ -114,7 +119,12 @@ async def get_patient_history(
             detail="Patient not found"
         )
     
-    return patient_history
+    # ✅ Import and validate at runtime instead of declaration time
+    from schemas.patient import PatientWithHistory
+    
+    # Validate the response manually
+    validated = PatientWithHistory.model_validate(patient_history)
+    return validated
 
 @router.put("/{patient_id}", response_model=Patient)
 async def update_patient(

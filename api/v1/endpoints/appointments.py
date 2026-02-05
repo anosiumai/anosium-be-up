@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import date, time, datetime
 
 from api import deps
 from schemas.appointment import (
     Appointment, AppointmentCreate, AppointmentUpdate,
-    AppointmentWithDetails, AppointmentReschedule, AppointmentCancel,
+    # ❌ REMOVED: AppointmentWithDetails - moved to runtime import
+    AppointmentReschedule, AppointmentCancel,
     DoctorAvailabilitySlot
 )
 from schemas.common import PaginatedResponse, SuccessResponse
@@ -124,15 +125,18 @@ async def get_upcoming_appointments(
     )
     return appointments
 
-@router.get("/{appointment_id}", response_model=AppointmentWithDetails)
+# ✅ FIXED: Lazy response model for AppointmentWithDetails
+@router.get("/{appointment_id}", response_model=None)
 async def get_appointment(
     appointment_id: int,
     current_user: User = Depends(deps.get_current_user),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
-):
+) -> Any:
     """
     Get appointment with full details
+    
+    **Returns:** AppointmentWithDetails (validated at runtime)
     """
     service = AppointmentService(db, current_tenant.id, current_user.id)
     appointment = service.get_appointment_with_details(appointment_id)
@@ -143,7 +147,9 @@ async def get_appointment(
             detail="Appointment not found"
         )
     
-    return appointment
+    # Import and validate at runtime
+    from schemas.appointment import AppointmentWithDetails
+    return AppointmentWithDetails.model_validate(appointment)
 
 @router.put("/{appointment_id}", response_model=Appointment)
 async def update_appointment(

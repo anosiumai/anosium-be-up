@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from schemas.user import User
     from schemas.patient import Patient, PatientCreate
 
+
 class AIInteractionCreate(BaseModel):
     """Create AI interaction"""
     message_type: str = Field(..., pattern=r'^(user|bot)$')
@@ -14,6 +15,7 @@ class AIInteractionCreate(BaseModel):
     platform: str
     intent_detected: Optional[str] = None
     entities_extracted: Optional[Dict[str, Any]] = None
+
 
 class AIInteraction(BaseModel):
     """AI chatbot interaction"""
@@ -29,6 +31,7 @@ class AIInteraction(BaseModel):
     class Config:
         from_attributes = True
 
+
 class AILeadBase(BaseModel):
     """Base AI lead schema"""
     name: str = Field(..., min_length=2, max_length=200)
@@ -41,6 +44,7 @@ class AILeadBase(BaseModel):
     class Config:
         from_attributes = True
 
+
 class AILeadCreate(AILeadBase):
     """Create AI lead schema"""
     source_details: Optional[Dict[str, Any]] = None
@@ -48,6 +52,7 @@ class AILeadCreate(AILeadBase):
     ai_sentiment: Optional[str] = None
     ai_intent: Optional[str] = None
     ai_suggested_action: Optional[str] = None
+
 
 class AILeadUpdate(BaseModel):
     """Update AI lead schema"""
@@ -61,11 +66,13 @@ class AILeadUpdate(BaseModel):
     next_follow_up_at: Optional[datetime] = None
     assigned_to: Optional[int] = None
 
+
 class LeadConversion(BaseModel):
     """Convert lead to patient"""
     create_patient: bool = True
-    patient_data: Optional['PatientCreate'] = None
+    patient_data: Optional[Dict[str, Any]] = None  # Changed from PatientCreate to Dict
     conversion_notes: Optional[str] = None
+
 
 class AILeadInDB(AILeadBase):
     """AI lead from database"""
@@ -88,13 +95,23 @@ class AILeadInDB(AILeadBase):
     updated_at: Optional[datetime]
     assigned_to: Optional[int]
 
+
 class AILead(AILeadInDB):
     """Public AI lead schema"""
     patient: Optional['Patient'] = None
     assigned_user: Optional['User'] = None
+
 
 class AILeadWithInteractions(AILead):
     """AI lead with interaction history"""
     interactions: List[AIInteraction] = []
     total_interactions: int = 0
     last_interaction: Optional[datetime] = None
+
+
+# Resolve forward references after all schemas are defined
+from schemas.patient import Patient, PatientCreate
+from schemas.user import User
+
+AILead.model_rebuild()
+AILeadWithInteractions.model_rebuild()

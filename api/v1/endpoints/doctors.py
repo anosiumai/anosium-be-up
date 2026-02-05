@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import date
 
 from api import deps
 from schemas.doctor import (
-    Doctor, DoctorCreate, DoctorUpdate, DoctorWithSchedule,
+    Doctor, DoctorCreate, DoctorUpdate,  # Keep simple schemas
     DoctorAvailability, DoctorStats
+    # ❌ REMOVED: DoctorWithSchedule - moved to runtime import
 )
 from schemas.common import PaginatedResponse, SuccessResponse
 from services.doctor_service import DoctorService
@@ -105,15 +106,18 @@ async def get_doctor(
     
     return doctor
 
-@router.get("/{doctor_id}/schedule", response_model=DoctorWithSchedule)
+# ✅ FIXED: Lazy response model for DoctorWithSchedule
+@router.get("/{doctor_id}/schedule", response_model=None)
 async def get_doctor_schedule(
     doctor_id: int,
     current_user: User = Depends(deps.get_current_user),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
-):
+) -> Any:
     """
     Get doctor with weekly schedule
+    
+    **Returns:** DoctorWithSchedule (validated at runtime)
     """
     service = DoctorService(db, current_tenant.id, current_user.id)
     doctor_schedule = service.get_doctor_with_schedule(doctor_id)
@@ -124,7 +128,9 @@ async def get_doctor_schedule(
             detail="Doctor not found"
         )
     
-    return doctor_schedule
+    # Import and validate at runtime
+    from schemas.doctor import DoctorWithSchedule
+    return DoctorWithSchedule.model_validate(doctor_schedule)
 
 @router.put("/{doctor_id}", response_model=Doctor)
 async def update_doctor(

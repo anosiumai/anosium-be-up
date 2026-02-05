@@ -3,6 +3,7 @@ from typing import Optional, List, TYPE_CHECKING
 from datetime import date, datetime
 from models.patient import Gender, BloodGroup
 
+# Forward references for circular dependencies
 if TYPE_CHECKING:
     from schemas.visit import Visit
     from schemas.appointment import Appointment
@@ -114,7 +115,10 @@ class PatientStats(BaseModel):
     upcoming_appointments: int = 0
 
 class PatientWithHistory(Patient):
-    """Patient with medical history"""
+    """Patient with medical history - uses string forward references"""
     stats: PatientStats
     recent_visits: List['Visit'] = []
     recent_appointments: List['Appointment'] = []
+    
+    class Config:
+        from_attributes = True

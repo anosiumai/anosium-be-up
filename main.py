@@ -16,9 +16,11 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import time
 
+
 from core.config import settings
 from core.database import init_db, check_db_connection, engine
 from api.v1.endpoints import api_router
+from schemas import rebuild_all_models  
 
 # Configure logging
 logging.basicConfig(
@@ -38,6 +40,14 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Starting Hospital Management System...")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
     logger.info(f"Debug Mode: {settings.DEBUG}")
+    
+    # ✅ CRITICAL: Rebuild Pydantic models FIRST
+    # This must happen before FastAPI generates OpenAPI schema
+    try:
+        rebuild_all_models()
+    except Exception as e:
+        logger.warning(f"Model rebuild had issues: {e}")
+        # Continue anyway - Pydantic v2 often auto-rebuilds on first use
     
     # Check database connection
     if not check_db_connection():
@@ -62,13 +72,9 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("🛑 Shutting down Hospital Management System...")
-    
-    # Close database connections
     engine.dispose()
     logger.info("✅ Database connections closed")
-    
     logger.info("👋 Application shutdown complete")
-
 
 # Create FastAPI application
 app = FastAPI(

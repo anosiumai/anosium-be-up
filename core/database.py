@@ -2,7 +2,7 @@
 Database connection and session management
 """
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool, QueuePool
@@ -147,16 +147,9 @@ def drop_db():
 
 
 def check_db_connection() -> bool:
-    """
-    Check if database connection is working
-    
-    Returns:
-        True if connection is successful, False otherwise
-    """
     try:
-        db = SessionLocal()
-        db.execute("SELECT 1")
-        db.close()
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
         logger.info("Database connection successful")
         return True
     except Exception as e:

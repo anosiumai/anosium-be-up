@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from api import deps
-from schemas.visit import Visit, VisitCreate, VisitUpdate, VisitWithDetails
+from schemas.visit import (
+    Visit, VisitCreate, VisitUpdate
+    # ❌ REMOVED: VisitWithDetails - moved to runtime import
+)
 from schemas.common import PaginatedResponse, SuccessResponse
 from services.visit_service import VisitService
 from models.user import User, UserRole
@@ -72,15 +75,18 @@ async def list_visits(
         total_pages=(result["total"] + pagination["page_size"] - 1) // pagination["page_size"]
     )
 
-@router.get("/{visit_id}", response_model=VisitWithDetails)
+# ✅ FIXED: Lazy response model for VisitWithDetails
+@router.get("/{visit_id}", response_model=None)
 async def get_visit(
     visit_id: int,
     current_user: User = Depends(deps.get_current_user),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
-):
+) -> Any:
     """
     Get visit with full details including billing
+    
+    **Returns:** VisitWithDetails (validated at runtime)
     """
     service = VisitService(db, current_tenant.id, current_user.id)
     visit = service.get_visit_with_details(visit_id)
@@ -91,7 +97,9 @@ async def get_visit(
             detail="Visit not found"
         )
     
-    return visit
+    # Import and validate at runtime
+    from schemas.visit import VisitWithDetails
+    return VisitWithDetails.model_validate(visit)
 
 @router.put("/{visit_id}", response_model=Visit)
 async def update_visit(

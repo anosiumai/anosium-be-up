@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_, or_, desc
 from datetime import datetime, date, timedelta
 
+
 from models.billing import (
     Invoice, InvoiceItem, Payment, PaymentStatus, PaymentMethod,
     VisitService

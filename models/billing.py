@@ -1,8 +1,14 @@
+"""
+Billing Models
+Invoices, payments, and financial transactions
+"""
+
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Enum as SQLEnum, Boolean, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.database import Base
 import enum
+
 
 class PaymentStatus(str, enum.Enum):
     PENDING = "pending"
@@ -11,6 +17,7 @@ class PaymentStatus(str, enum.Enum):
     CANCELLED = "cancelled"
     REFUNDED = "refunded"
 
+
 class PaymentMethod(str, enum.Enum):
     CASH = "cash"
     CARD = "card"
@@ -18,6 +25,7 @@ class PaymentMethod(str, enum.Enum):
     BANK_TRANSFER = "bank_transfer"
     INSURANCE = "insurance"
     WALLET = "wallet"
+
 
 class Invoice(Base):
     """
@@ -58,10 +66,12 @@ class Invoice(Base):
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     
     # Relationships
+    tenant = relationship("Tenant", viewonly=True)
     patient = relationship("Patient", back_populates="invoices")
-    visit = relationship("Visit", back_populates="invoice")
+    visit = relationship("Visit", back_populates="invoice", uselist=False)
     invoice_items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
+
 
 class InvoiceItem(Base):
     """
@@ -82,7 +92,8 @@ class InvoiceItem(Base):
     
     # Relationships
     invoice = relationship("Invoice", back_populates="invoice_items")
-    service = relationship("Service")
+    service = relationship("Service", viewonly=True)
+
 
 class Payment(Base):
     """
@@ -109,49 +120,9 @@ class Payment(Base):
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     
     # Relationships
+    tenant = relationship("Tenant", viewonly=True)
     invoice = relationship("Invoice", back_populates="payments")
 
-class Package(Base):
-    """
-    Service packages/bundles
-    """
-    __tablename__ = "packages"
-
-    id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
-    
-    code = Column(String(50), nullable=False)
-    name = Column(String(200), nullable=False)
-    description = Column(Text)
-    
-    # Pricing
-    total_price = Column(Integer, nullable=False)  # Bundled price
-    discount_percentage = Column(Integer, default=0)
-    
-    # Validity
-    validity_days = Column(Integer)  # Package valid for X days
-    
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    # Relationships
-    package_services = relationship("PackageService", back_populates="package")
-
-class PackageService(Base):
-    """
-    Services included in a package
-    """
-    __tablename__ = "package_services"
-
-    id = Column(Integer, primary_key=True, index=True)
-    package_id = Column(Integer, ForeignKey("packages.id", ondelete="CASCADE"), nullable=False)
-    service_id = Column(Integer, ForeignKey("services.id", ondelete="CASCADE"), nullable=False)
-    quantity = Column(Integer, default=1)
-    
-    # Relationships
-    package = relationship("Package", back_populates="package_services")
-    service = relationship("Service", back_populates="package_services")
 
 class VisitService(Base):
     """
@@ -172,4 +143,4 @@ class VisitService(Base):
     
     # Relationships
     visit = relationship("Visit", back_populates="visit_services")
-    service = relationship("Service")
+    service = relationship("Service", viewonly=True)

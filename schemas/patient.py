@@ -14,7 +14,7 @@ class PatientBase(BaseModel):
     date_of_birth: date
     gender: Gender
     email: Optional[EmailStr] = None
-    phone: str = Field(..., regex=r'^\+?[1-9]\d{1,14}$')
+    phone: str = Field(..., pattern=r'^\+?[1-9]\d{1,14}$')
     alternate_phone: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = None

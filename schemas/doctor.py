@@ -42,7 +42,7 @@ class DoctorUpdate(BaseModel):
 
 class DoctorAvailability(BaseModel):
     """Doctor availability for a day"""
-    day: str = Field(..., regex=r'^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$')
+    day: str = Field(..., pattern=r'^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$')
     is_available: bool = True
     start_time: Optional[time] = None
     end_time: Optional[time] = None

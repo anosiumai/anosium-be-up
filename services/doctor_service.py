@@ -14,7 +14,7 @@ from models.appointment import Appointment, AppointmentStatus
 from models.visit import Visit
 from models.billing import Invoice
 from models.department import Department
-from repositories.doctor_repository import DoctorRepository
+from repositories.doctor import DoctorRepository
 from schemas.doctor import (
     DoctorCreate, DoctorUpdate, Doctor as DoctorSchema,
     DoctorWithSchedule, DoctorAvailability, DoctorStats

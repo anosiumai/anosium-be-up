@@ -8,7 +8,7 @@ class UserBase(BaseModel):
     email: EmailStr
     first_name: str = Field(..., min_length=2, max_length=100)
     last_name: str = Field(..., min_length=2, max_length=100)
-    phone: Optional[str] = Field(None, regex=r'^\+?[1-9]\d{1,14}$')
+    phone: Optional[str] = Field(None, pattern=r'^\+?[1-9]\d{1,14}$')
     role: UserRole
     
     class Config:

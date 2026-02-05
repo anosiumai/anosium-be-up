@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 class Vitals(BaseModel):
     """Patient vitals"""
-    blood_pressure: Optional[str] = Field(None, regex=r'^\d{2,3}/\d{2,3}$')
+    blood_pressure: Optional[str] = Field(None, pattern=r'^\d{2,3}/\d{2,3}$')
     temperature: Optional[float] = Field(None, ge=90, le=110)
     pulse: Optional[int] = Field(None, ge=30, le=200)
     respiratory_rate: Optional[int] = Field(None, ge=8, le=40)

@@ -7,7 +7,7 @@ class TenantBase(BaseModel):
     """Base tenant schema"""
     name: str = Field(..., min_length=2, max_length=255)
     email: EmailStr
-    phone: Optional[str] = Field(None, regex=r'^\+?[1-9]\d{1,14}$')
+    phone: Optional[str] = Field(None, pattern=r'^\+?[1-9]\d{1,14}$')
     address: Optional[str] = None
     city: Optional[str] = Field(None, max_length=100)
     state: Optional[str] = Field(None, max_length=100)
@@ -19,7 +19,7 @@ class TenantBase(BaseModel):
 
 class TenantCreate(TenantBase):
     """Create tenant schema"""
-    slug: str = Field(..., regex=r'^[a-z0-9-]+$', min_length=3, max_length=100)
+    slug: str = Field(..., pattern=r'^[a-z0-9-]+$', min_length=3, max_length=100)
     password: str = Field(..., min_length=8)
     admin_first_name: str = Field(..., min_length=2)
     admin_last_name: str = Field(..., min_length=2)
@@ -41,7 +41,7 @@ class TenantUpdate(BaseModel):
     country: Optional[str] = None
     postal_code: Optional[str] = None
     logo_url: Optional[HttpUrl] = None
-    primary_color: Optional[str] = Field(None, regex=r'^#[0-9A-Fa-f]{6}$')
+    primary_color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     settings: Optional[Dict[str, Any]] = None
 
 class SubscriptionUpdate(BaseModel):

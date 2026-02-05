@@ -1,17 +1,25 @@
-from .base import BaseRepository
-from .tenant import TenantRepository
-from .user import UserRepository
-from .patient import PatientRepository
-from .doctor import DoctorRepository
-from .department import DepartmentRepository
-from .appointment import AppointmentRepository
-from .visit import VisitRepository
-from .service import ServiceRepository
-from .billing import InvoiceRepository, PaymentRepository, PackageRepository
-from .ai_lead import AILeadRepository, AIInteractionRepository
-from .notification import NotificationRepository, NotificationTemplateRepository
-from .audit import AuditLogRepository, DataAccessLogRepository
-from .analytics import DailyMetricsRepository
+"""
+Repositories package
+"""
+
+from repositories.base import BaseRepository
+from repositories.tenant import TenantRepository
+from repositories.user import UserRepository
+from repositories.patient import PatientRepository
+from repositories.doctor import DoctorRepository
+from repositories.department import DepartmentRepository
+from repositories.appointment import AppointmentRepository
+from repositories.visit import VisitRepository
+from repositories.service import ServiceRepository, PackageRepository  # ✅ PackageRepository is here
+from repositories.billing import InvoiceRepository, PaymentRepository, VisitServiceRepository  # ❌ Remove PackageRepository from here
+from repositories.ai_lead import AILeadRepository, AIInteractionRepository
+from repositories.notification import (
+    NotificationRepository,
+    NotificationTemplateRepository,
+    NotificationPreferenceRepository,
+)
+from repositories.audit import AuditLogRepository, DataAccessLogRepository
+from repositories.analytics import DailyMetricsRepository, SystemHealthMetricRepository
 
 __all__ = [
     "BaseRepository",
@@ -23,14 +31,17 @@ __all__ = [
     "AppointmentRepository",
     "VisitRepository",
     "ServiceRepository",
+    "PackageRepository",
     "InvoiceRepository",
     "PaymentRepository",
-    "PackageRepository",
+    "VisitServiceRepository",
     "AILeadRepository",
     "AIInteractionRepository",
     "NotificationRepository",
     "NotificationTemplateRepository",
+    "NotificationPreferenceRepository",
     "AuditLogRepository",
     "DataAccessLogRepository",
     "DailyMetricsRepository",
+    "SystemHealthMetricRepository",
 ]

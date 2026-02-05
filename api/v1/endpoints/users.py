@@ -561,7 +561,7 @@ async def send_welcome_email(
 
 @router.get("/search/email", response_model=User)
 async def search_user_by_email(
-    email: str = Query(..., regex=r'^[\w\.-]+@[\w\.-]+\.\w+$'),
+    email: str = Query(..., pattern=r'^[\w\.-]+@[\w\.-]+\.\w+$'),
     current_user: UserModel = Depends(deps.require_clinic_admin),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)

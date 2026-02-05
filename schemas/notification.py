@@ -68,14 +68,14 @@ class Notification(NotificationInDB):
 
 class NotificationTemplateBase(BaseModel):
     """Base notification template schema"""
-    code: str = Field(..., min_length=2, max_length=100, regex=r'^[A-Z0-9_]+$')
+    code: str = Field(..., min_length=2, max_length=100, pattern=r'^[A-Z0-9_]+$')
     name: str = Field(..., min_length=2, max_length=200)
     description: Optional[str] = None
     type: NotificationType
     channel: NotificationChannel
     subject_template: Optional[str] = None
     body_template: str = Field(..., min_length=1)
-    language: str = Field(default="en", regex=r'^[a-z]{2}$')
+    language: str = Field(default="en", pattern=r'^[a-z]{2}$')
     
     class Config:
         from_attributes = True

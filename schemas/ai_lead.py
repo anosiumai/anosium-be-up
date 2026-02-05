@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 class AIInteractionCreate(BaseModel):
     """Create AI interaction"""
-    message_type: str = Field(..., regex=r'^(user|bot)$')
+    message_type: str = Field(..., pattern=r'^(user|bot)$')
     message_content: str = Field(..., min_length=1)
     platform: str
     intent_detected: Optional[str] = None
@@ -32,7 +32,7 @@ class AIInteraction(BaseModel):
 class AILeadBase(BaseModel):
     """Base AI lead schema"""
     name: str = Field(..., min_length=2, max_length=200)
-    phone: str = Field(..., regex=r'^\+?[1-9]\d{1,14}$')
+    phone: str = Field(..., pattern=r'^\+?[1-9]\d{1,14}$')
     email: Optional[EmailStr] = None
     source: LeadSource
     message: Optional[str] = None

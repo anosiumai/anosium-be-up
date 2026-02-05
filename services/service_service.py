@@ -73,8 +73,7 @@ class ServiceService(BaseService):
             department_id=service_in.department_id,
             base_price=service_in.base_price,
             tax_percentage=service_in.tax_percentage,
-            duration_minutes=service_in.duration_minutes,
-            requires_appointment=service_in.requires_appointment,
+            estimated_duration_minutes=service_in.estimated_duration_minutes,
             is_active=True
         )
         
@@ -881,3 +880,11 @@ class PackageService(BaseService):
         self.commit()
         
         return self.get_package_with_services(package_id)
+
+
+# Alias for backward compatibility
+class ServiceManagementService(ServiceService):
+    """
+    Alias for ServiceService to maintain backward compatibility
+    """
+    pass

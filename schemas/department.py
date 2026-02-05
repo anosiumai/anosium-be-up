@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 class DepartmentBase(BaseModel):
     """Base department schema"""
     name: str = Field(..., min_length=2, max_length=200)
-    code: str = Field(..., min_length=2, max_length=20, regex=r'^[A-Z0-9_]+$')
+    code: str = Field(..., min_length=2, max_length=20, pattern=r'^[A-Z0-9_]+$')
     description: Optional[str] = None
     
     class Config:

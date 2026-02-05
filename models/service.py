@@ -45,3 +45,49 @@ class Service(Base):
     department = relationship("Department", back_populates="services")
     visit_services = relationship("VisitService", back_populates="service")
     package_services = relationship("PackageService", back_populates="service")
+
+class Package(Base):
+    """
+    Service packages/bundles with discounted pricing
+    Example: Health Checkup Package, Vaccination Package
+    """
+    __tablename__ = "packages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    
+    # Package Details
+    name = Column(String(255), nullable=False)
+    code = Column(String(50), nullable=False, index=True)
+    description = Column(Text)
+    
+    # Pricing
+    package_price = Column(Integer, nullable=False)  # Discounted price in cents/paise
+    discount_percentage = Column(Integer, default=0)
+    
+    # Validity
+    validity_days = Column(Integer, default=365)  # How long package is valid
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    tenant = relationship("Tenant", viewonly=True)
+    package_services = relationship("PackageService", back_populates="package", cascade="all, delete-orphan")
+
+
+class PackageService(Base):
+    """
+    Junction table linking packages to services
+    """
+    __tablename__ = "package_services"
+
+    id = Column(Integer, primary_key=True, index=True)
+    package_id = Column(Integer, ForeignKey("packages.id"), nullable=False, index=True)
+    service_id = Column(Integer, ForeignKey("services.id"), nullable=False, index=True)
+    
+    # Relationships
+    package = relationship("Package", back_populates="package_services")
+    service = relationship("Service", back_populates="package_services")

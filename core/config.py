@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     
     # CORS - FIXED: Added type annotation
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
+    CORS_ORIGINS: List[str] = []
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: List[str] = ["*"]
     CORS_ALLOW_HEADERS: List[str] = ["*"]
@@ -140,13 +140,23 @@ class Settings(BaseSettings):
     
     @validator("CORS_ORIGINS", pre=True)
     def parse_cors_origins(cls, v):
-        """Parse CORS_ORIGINS from string or list"""
+        if isinstance(v, list):
+            return v
+
         if isinstance(v, str):
-            # Remove brackets and quotes if present
-            v = v.strip('[]"\'')
-            # Split by comma and clean each origin
-            return [origin.strip().strip('"\'') for origin in v.split(",")]
-        return v
+            try:
+                parsed = json.loads(v)
+                if not isinstance(parsed, list):
+                    raise ValueError
+                return parsed
+            except Exception:
+                raise ValueError(
+                    "CORS_ORIGINS must be a JSON array. "
+                    'Example: ["http://localhost:3000","http://localhost:8000"]'
+                )
+
+        raise ValueError("Invalid CORS_ORIGINS format")
+
     
     class Config:
         env_file = ".env"

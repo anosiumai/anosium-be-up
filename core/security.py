@@ -1,5 +1,6 @@
 """
 Security utilities for authentication and authorization
+FIXED: Centralized bcrypt password hashing, removed duplicate contexts
 """
 
 from datetime import datetime, timedelta
@@ -10,10 +11,11 @@ from jose import JWTError, jwt
 from core.config import settings
 
 
-# Password hashing context
+# ✅ SINGLE SOURCE OF TRUTH for password hashing
 pwd_context = CryptContext(
-    schemes=["sha256_crypt"],
-    deprecated="auto"
+    schemes=["bcrypt"],  # Industry standard, slow by design
+    deprecated="auto",
+    bcrypt__rounds=12  # Cost factor (higher = slower = more secure)
 )
 
 
@@ -82,7 +84,7 @@ def create_access_token(
     Create JWT access token
     
     Args:
-        data: Data to encode in the token
+        data: Data to encode in the token (should include: user_id, tenant_id, role)
         expires_delta: Token expiration time (defaults to settings value)
         
     Returns:
@@ -118,6 +120,14 @@ def create_refresh_token(
 ) -> str:
     """
     Create JWT refresh token
+    
+    NOTE: This creates a JWT-based refresh token, but auth_service.py
+    uses database-stored refresh tokens. Consider which approach to use:
+    
+    - JWT refresh tokens: Stateless, but can't be revoked easily
+    - DB refresh tokens: Can be revoked, but requires DB lookup
+    
+    Current recommendation: Use DB-based approach (in auth_service.py)
     
     Args:
         data: Data to encode in the token
@@ -239,6 +249,9 @@ def extract_tenant_id_from_token(token: str) -> Optional[int]:
 def create_password_reset_token(user_id: int) -> str:
     """
     Create password reset token
+    
+    NOTE: auth_service.py uses DB-based reset tokens (more secure).
+    This JWT-based approach is kept for backward compatibility.
     
     Args:
         user_id: User ID

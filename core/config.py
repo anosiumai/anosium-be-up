@@ -5,8 +5,7 @@ Handles all environment variables and settings
 
 from typing import Optional, List
 from pydantic_settings import BaseSettings
-from pydantic import validator
-
+from pydantic import validator, Field
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
@@ -21,7 +20,7 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     
     # CORS - FIXED: Added type annotation
-    CORS_ORIGINS: List[str] = []
+    CORS_ORIGINS: List[str] = Field(default_factory=list)
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: List[str] = ["*"]
     CORS_ALLOW_HEADERS: List[str] = ["*"]

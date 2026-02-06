@@ -1,22 +1,14 @@
 """
 Security utilities for authentication and authorization
-FIXED: Centralized bcrypt password hashing, removed duplicate contexts
+FIXED: Using bcrypt directly instead of passlib for better compatibility
 """
 
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
-from passlib.context import CryptContext
+import bcrypt
 from jose import JWTError, jwt
 
 from core.config import settings
-
-
-# ✅ SINGLE SOURCE OF TRUTH for password hashing
-pwd_context = CryptContext(
-    schemes=["bcrypt"],  # Industry standard, slow by design
-    deprecated="auto",
-    bcrypt__rounds=12  # Cost factor (higher = slower = more secure)
-)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -30,7 +22,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         True if password matches, False otherwise
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        password_bytes = plain_password.encode('utf-8')
+        hashed_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    except Exception:
+        return False
 
 
 def get_password_hash(password: str) -> str:
@@ -43,7 +40,10 @@ def get_password_hash(password: str) -> str:
     Returns:
         Hashed password
     """
-    return pwd_context.hash(password)
+    password_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt(rounds=12)  # Cost factor (higher = slower = more secure)
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 
 def validate_password_strength(password: str) -> tuple[bool, Optional[str]]:

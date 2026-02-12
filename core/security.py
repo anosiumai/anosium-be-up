@@ -39,12 +39,16 @@ def get_password_hash(password: str) -> str:
         
     Returns:
         Hashed password
+        
+    Note:
+        bcrypt has a 72-byte limit. We truncate if needed.
     """
-    password_bytes = password.encode('utf-8')
-    salt = bcrypt.gensalt(rounds=12)  # Cost factor (higher = slower = more secure)
+    # Truncate to 72 bytes (bcrypt limit)
+    password_bytes = password.encode('utf-8')[:72]
+    
+    salt = bcrypt.gensalt(rounds=12)
     hashed = bcrypt.hashpw(password_bytes, salt)
     return hashed.decode('utf-8')
-
 
 def validate_password_strength(password: str) -> tuple[bool, Optional[str]]:
     """

@@ -129,23 +129,15 @@ def get_current_tenant(
     
     return tenant
 
-
 def require_role(required_role: UserRole):
     """
     Dependency factory for role-based access control
     
     Args:
-        required_role: Minimum required role
+        required_role: Minimum required role OR list of allowed roles
         
     Returns:
         Dependency function
-        
-    Example:
-        @router.get("/admin-only")
-        def admin_endpoint(
-            user: User = Depends(require_role(UserRole.CLINIC_ADMIN))
-        ):
-            ...
     """
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
         # Define role hierarchy
@@ -158,19 +150,61 @@ def require_role(required_role: UserRole):
             UserRole.STAFF: 1,
         }
         
-        user_level = role_hierarchy.get(current_user.role, 0)
-        required_level = role_hierarchy.get(required_role, 0)
-        
-        if user_level < required_level:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Insufficient permissions. {required_role.value} role required."
-            )
+        # FIX: Handle both single role and list of roles
+        if isinstance(required_role, list):
+            # If list provided, check if user has ANY of the roles
+            if current_user.role not in required_role:
+                # Also check hierarchy for backward compatibility
+                user_level = role_hierarchy.get(current_user.role, 0)
+                required_levels = [role_hierarchy.get(role, 0) for role in required_role]
+                if user_level < min(required_levels):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Insufficient permissions. One of {[r.value for r in required_role]} roles required."
+                    )
+        else:
+            # Single role check (original logic)
+            user_level = role_hierarchy.get(current_user.role, 0)
+            required_level = role_hierarchy.get(required_role, 0)
+            
+            if user_level < required_level:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Insufficient permissions. {required_role.value} role required."
+                )
         
         return current_user
     
     return role_checker
 
+
+# ADD: New helper for multiple allowed roles
+def require_any_role(allowed_roles: list[UserRole]):
+    """
+    Dependency factory for checking if user has any of the specified roles
+    
+    Args:
+        allowed_roles: List of allowed roles
+        
+    Returns:
+        Dependency function
+        
+    Example:
+        @router.get("/admin-or-doctor")
+        def endpoint(
+            user: User = Depends(require_any_role([UserRole.CLINIC_ADMIN, UserRole.DOCTOR]))
+        ):
+            ...
+    """
+    def role_checker(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Insufficient permissions. One of {[r.value for r in allowed_roles]} roles required."
+            )
+        return current_user
+    
+    return role_checker
 
 def require_super_admin(
     current_user: User = Depends(get_current_user)

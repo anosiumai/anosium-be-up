@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
+from core.security import get_password_hash, verify_password
 
 from models.user import User, UserRole
 from models.tenant import Tenant
@@ -20,7 +21,13 @@ from schemas.user import (
 
 
 # Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# At the top of services/user.py
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=12,  # Explicitly set rounds
+    bcrypt__ident="2b"   # Use bcrypt 2b variant
+)
 
 
 class UserService:
@@ -37,18 +44,7 @@ class UserService:
     # ============================================================================
     
     def create_user(self, user_in: UserCreate) -> UserSchema:
-        """
-        Create new user
-        
-        Args:
-            user_in: User creation data
-            
-        Returns:
-            Created user
-            
-        Raises:
-            ValueError: If email already exists or validation fails
-        """
+        """Create new user"""
         # Check if email already exists
         if self.user_repo.check_email_exists(user_in.email):
             raise ValueError(f"Email '{user_in.email}' already exists")
@@ -63,8 +59,8 @@ class UserService:
             if not tenant:
                 raise ValueError("Tenant not found")
         
-        # Hash password
-        hashed_password = self._hash_password(user_in.password)
+        # Hash password - USE get_password_hash from core/security.py
+        hashed_password = get_password_hash(user_in.password)
         
         # Create user
         user = User(
@@ -218,16 +214,7 @@ class UserService:
     # ============================================================================
     
     def authenticate_user(self, email: str, password: str) -> Optional[User]:
-        """
-        Authenticate user with email and password
-        
-        Args:
-            email: User email
-            password: Plain text password
-            
-        Returns:
-            User object if authenticated, None otherwise
-        """
+        """Authenticate user with email and password"""
         user = self.user_repo.get_by_email(email.lower())
         
         if not user:
@@ -236,7 +223,8 @@ class UserService:
         if not user.is_active:
             return None
         
-        if not self._verify_password(password, user.hashed_password):
+        # USE verify_password from core/security.py
+        if not verify_password(password, user.hashed_password):
             return None
         
         # Update last login
@@ -244,6 +232,37 @@ class UserService:
         self.db.commit()
         
         return user
+    
+    def change_password(
+        self,
+        user_id: int,
+        password_change: PasswordChange
+    ) -> bool:
+        """
+        Change user password
+        
+        Args:
+            user_id: User ID
+            password_change: Password change data
+            
+        Returns:
+            True if changed successfully, False if not found or wrong password
+        """
+        user = self.user_repo.get(user_id)
+        
+        if not user:
+            return False
+        
+        # Verify old password - USE verify_password from core/security.py
+        if not verify_password(password_change.old_password, user.hashed_password):
+            return False
+        
+        # Set new password - USE get_password_hash from core/security.py
+        user.hashed_password = get_password_hash(password_change.new_password)
+        
+        self.db.commit()
+        
+        return True
     
     def get_user_by_email(self, email: str) -> Optional[UserSchema]:
         """
@@ -283,54 +302,16 @@ class UserService:
         
         return True
     
-    def change_password(
-        self,
-        user_id: int,
-        password_change: PasswordChange
-    ) -> bool:
-        """
-        Change user password
-        
-        Args:
-            user_id: User ID
-            password_change: Password change data
-            
-        Returns:
-            True if changed successfully, False if not found or wrong password
-        """
-        user = self.user_repo.get(user_id)
-        
-        if not user:
-            return False
-        
-        # Verify old password
-        if not self._verify_password(password_change.old_password, user.hashed_password):
-            return False
-        
-        # Set new password
-        user.hashed_password = self._hash_password(password_change.new_password)
-        
-        self.db.commit()
-        
-        return True
+    
     
     def admin_reset_password(self, user_id: int, new_password: str) -> bool:
-        """
-        Reset user password (admin function)
-        
-        Args:
-            user_id: User ID
-            new_password: New password
-            
-        Returns:
-            True if reset successfully, False if not found
-        """
+        """Reset user password (admin function)"""
         user = self.user_repo.get(user_id)
         
         if not user:
             return False
         
-        user.hashed_password = self._hash_password(new_password)
+        user.hashed_password = get_password_hash(new_password)
         
         self.db.commit()
         
@@ -697,13 +678,6 @@ class UserService:
     # HELPER METHODS
     # ============================================================================
     
-    def _hash_password(self, password: str) -> str:
-        """Hash a password"""
-        return pwd_context.hash(password)
-    
-    def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        """Verify a password against a hash"""
-        return pwd_context.verify(plain_password, hashed_password)
     
     def _validate_user_access(self, user_id: int) -> bool:
         """

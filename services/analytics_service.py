@@ -1,5 +1,5 @@
 """
-Analytics Service
+Analytics Service - CORRECTED VERSION
 Handles all analytics, reporting, and metrics calculations for the healthcare management system
 """
 
@@ -13,8 +13,9 @@ from models.analytics import DailyMetrics
 from models.appointment import Appointment, AppointmentStatus
 from models.patient import Patient
 from models.doctor import Doctor
+from models.user import User
 from models.visit import Visit
-from models.billing import Invoice, Payment, PaymentMethod
+from models.billing import Invoice, Payment, PaymentMethod, InvoiceItem
 from models.service import Service
 from models.ai_lead import AILead
 from repositories.analytics import DailyMetricsRepository
@@ -222,7 +223,8 @@ class AnalyticsService:
         completed = sum(1 for a in all_appointments if a.status == AppointmentStatus.COMPLETED)
         cancelled = sum(1 for a in all_appointments if a.status == AppointmentStatus.CANCELLED)
         no_shows = sum(1 for a in all_appointments if a.status == AppointmentStatus.NO_SHOW)
-        rescheduled = sum(1 for a in all_appointments if a.rescheduled_from_id is not None)
+        # FIX: Changed from rescheduled_from_id to status check
+        rescheduled = sum(1 for a in all_appointments if a.status == AppointmentStatus.RESCHEDULED)
         
         # By doctor
         by_doctor = self._get_appointments_by_doctor(from_date, to_date)
@@ -355,6 +357,7 @@ class AnalyticsService:
         
         doctors = (
             self.db.query(Doctor)
+            .join(User, User.id == Doctor.user_id)
             .filter(
                 and_(
                     Doctor.tenant_id == self.tenant_id,
@@ -407,12 +410,12 @@ class AnalyticsService:
             )
             
             # Patient satisfaction (if feedback system exists)
-            # This would come from a rating/feedback system
             patient_satisfaction = None  # Placeholder
             
+            # FIX: Access doctor name through user relationship
             performance_data.append({
                 'doctor_id': doctor.id,
-                'doctor_name': f"{doctor.first_name} {doctor.last_name}",
+                'doctor_name': f"{doctor.user.first_name} {doctor.user.last_name}",
                 'specialization': doctor.specialization,
                 'total_appointments': total_appointments,
                 'completed_appointments': completed_appointments,
@@ -652,8 +655,21 @@ class AnalyticsService:
         )
         
         captured = len(leads)
-        converted = sum(1 for lead in leads if lead.converted_to_patient_id is not None)
-        bookings = sum(1 for lead in leads if lead.appointment_booked)
+        # FIX: Changed from converted_to_patient_id to patient_id
+        converted = sum(1 for lead in leads if lead.patient_id is not None)
+        
+        # FIX: Query appointments instead of non-existent field
+        bookings = (
+            self.db.query(func.count(Appointment.id))
+            .filter(
+                and_(
+                    Appointment.tenant_id == self.tenant_id,
+                    Appointment.booked_via_ai == True,
+                    func.date(Appointment.created_at) == target_date
+                )
+            )
+            .scalar() or 0
+        )
         
         return {
             'captured': captured,
@@ -676,20 +692,23 @@ class AnalyticsService:
     # ============================================================================
     
     def _get_top_services(self, days: int = 30, limit: int = 5) -> List[Dict[str, Any]]:
-        """Get top services by usage and revenue"""
+        """
+        Get top services by usage and revenue
+        FIX: Use InvoiceItem junction table instead of Visit.service_id
+        """
         cutoff_date = date.today() - timedelta(days=days)
         
-        # This would join through visit_services or similar
-        # Simplified version assuming direct service tracking
+        # Join through invoice_items to track services used
         services_data = (
             self.db.query(
                 Service.id,
                 Service.name,
-                func.count(Visit.id).label('visit_count'),
-                func.sum(Invoice.total_amount).label('revenue')
+                func.count(InvoiceItem.id).label('usage_count'),
+                func.sum(InvoiceItem.total_amount).label('revenue')
             )
-            .join(Visit, Visit.service_id == Service.id)
-            .outerjoin(Invoice, Invoice.visit_id == Visit.id)
+            .join(InvoiceItem, InvoiceItem.service_id == Service.id)
+            .join(Invoice, Invoice.id == InvoiceItem.invoice_id)
+            .join(Visit, Visit.id == Invoice.visit_id)
             .filter(
                 and_(
                     Service.tenant_id == self.tenant_id,
@@ -697,7 +716,7 @@ class AnalyticsService:
                 )
             )
             .group_by(Service.id, Service.name)
-            .order_by(func.sum(Invoice.total_amount).desc())
+            .order_by(func.sum(InvoiceItem.total_amount).desc())
             .limit(limit)
             .all()
         )
@@ -706,7 +725,7 @@ class AnalyticsService:
             {
                 'service_id': s.id,
                 'service_name': s.name,
-                'visit_count': s.visit_count,
+                'usage_count': s.usage_count,
                 'revenue': s.revenue or 0
             }
             for s in services_data
@@ -881,16 +900,20 @@ class AnalyticsService:
         to_date: date,
         limit: int = 10
     ) -> List[Dict[str, Any]]:
-        """Get top revenue-generating services"""
+        """
+        Get top revenue-generating services
+        FIX: Use InvoiceItem junction table instead of Visit.service_id
+        """
         services = (
             self.db.query(
                 Service.id,
                 Service.name,
-                func.count(Visit.id).label('visit_count'),
-                func.sum(Invoice.total_amount).label('revenue')
+                func.count(InvoiceItem.id).label('usage_count'),
+                func.sum(InvoiceItem.total_amount).label('revenue')
             )
-            .join(Visit, Visit.service_id == Service.id)
-            .outerjoin(Invoice, Invoice.visit_id == Visit.id)
+            .join(InvoiceItem, InvoiceItem.service_id == Service.id)
+            .join(Invoice, Invoice.id == InvoiceItem.invoice_id)
+            .join(Visit, Visit.id == Invoice.visit_id)
             .filter(
                 and_(
                     Service.tenant_id == self.tenant_id,
@@ -899,7 +922,7 @@ class AnalyticsService:
                 )
             )
             .group_by(Service.id, Service.name)
-            .order_by(func.sum(Invoice.total_amount).desc())
+            .order_by(func.sum(InvoiceItem.total_amount).desc())
             .limit(limit)
             .all()
         )
@@ -908,7 +931,7 @@ class AnalyticsService:
             {
                 'service_id': s.id,
                 'service_name': s.name,
-                'visit_count': s.visit_count,
+                'usage_count': s.usage_count,
                 'total_revenue': s.revenue or 0
             }
             for s in services
@@ -923,17 +946,21 @@ class AnalyticsService:
         from_date: date,
         to_date: date
     ) -> List[Dict[str, Any]]:
-        """Get appointment breakdown by doctor"""
+        """
+        Get appointment breakdown by doctor
+        FIX: Join User table to access doctor names
+        """
         data = (
             self.db.query(
                 Doctor.id,
-                Doctor.first_name,
-                Doctor.last_name,
+                User.first_name,
+                User.last_name,
                 func.count(Appointment.id).label('total_appointments'),
                 func.sum(
                     case((Appointment.status == AppointmentStatus.COMPLETED, 1), else_=0)
                 ).label('completed')
             )
+            .join(User, User.id == Doctor.user_id)
             .join(Appointment, Appointment.doctor_id == Doctor.id)
             .filter(
                 and_(
@@ -942,7 +969,7 @@ class AnalyticsService:
                     Appointment.appointment_date <= to_date
                 )
             )
-            .group_by(Doctor.id, Doctor.first_name, Doctor.last_name)
+            .group_by(Doctor.id, User.first_name, User.last_name)
             .all()
         )
         

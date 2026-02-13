@@ -1,3 +1,4 @@
+# models/appointment.py
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Enum as SQLEnum, Boolean, Date, Time
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func

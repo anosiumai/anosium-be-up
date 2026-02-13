@@ -1,3 +1,4 @@
+# schemas/appointment.py
 from pydantic import BaseModel, Field, validator
 from typing import Optional, TYPE_CHECKING
 from datetime import date, time, datetime

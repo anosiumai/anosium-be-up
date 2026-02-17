@@ -38,7 +38,7 @@ class Doctor(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    tenant = relationship("Tenant", back_populates="doctors")
+    tenant = relationship("Tenant", back_populates="doctors", foreign_keys=[tenant_id])
     user = relationship("User", back_populates="doctor_profile")
     department = relationship("Department", back_populates="doctors", foreign_keys=[department_id])
     appointments = relationship("Appointment", back_populates="doctor")

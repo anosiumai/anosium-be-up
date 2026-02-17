@@ -74,5 +74,5 @@ class DataAccessLog(Base):
 
     # ✅ FIX: Add viewonly=True to prevent requiring back_populates
     tenant = relationship("Tenant", foreign_keys=[tenant_id], viewonly=True)
-    user = relationship("User", foreign_keys=[user_id], viewonly=True)
+    user = relationship("User", foreign_keys=[user_id], back_populates="data_access_logs")
     patient = relationship("Patient", foreign_keys=[patient_id], viewonly=True)

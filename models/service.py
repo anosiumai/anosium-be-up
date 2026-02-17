@@ -13,6 +13,7 @@ class ServiceType(str, enum.Enum):
     THERAPY = "therapy"
     PACKAGE = "package"
 
+
 class Service(Base):
     """
     Hospital services with pricing

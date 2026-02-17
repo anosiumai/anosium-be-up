@@ -32,8 +32,11 @@ class Appointment(Base):
     patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
     doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"), nullable=False, index=True)
     
+    
     # Appointment Details
     appointment_code = Column(String(50), unique=True, nullable=False, index=True)
+    appointment_number = Column(String(50), nullable=False)  
+    
     appointment_date = Column(Date, nullable=False, index=True)
     appointment_time = Column(Time, nullable=False)
     duration_minutes = Column(Integer, default=30)

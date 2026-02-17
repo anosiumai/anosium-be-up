@@ -2,7 +2,8 @@ from typing import Generic, TypeVar, Type, Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func
 from datetime import datetime, date
-
+from datetime import datetime, date, time
+import enum
 from models.audit import AuditLog, AuditAction
 from core.database import Base
 
@@ -65,8 +66,14 @@ class BaseRepository(Generic[ModelType]):
                     return values
                 serialized = {}
                 for key, value in values.items():
-                    if isinstance(value, (datetime, date)):
+                    if isinstance(value, datetime):
                         serialized[key] = value.isoformat()
+                    elif isinstance(value, date):
+                        serialized[key] = value.isoformat()
+                    elif isinstance(value, time):                    # ← ADD THIS
+                        serialized[key] = value.strftime('%H:%M:%S')
+                    elif isinstance(value, enum.Enum):               # ← ADD THIS
+                        serialized[key] = value.value
                     elif isinstance(value, dict):
                         serialized[key] = serialize_values(value)
                     else:

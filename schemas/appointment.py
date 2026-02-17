@@ -76,8 +76,8 @@ class AppointmentInDB(AppointmentBase):
     completed_at: Optional[datetime]
     cancelled_at: Optional[datetime]
     cancellation_reason: Optional[str]
-    created_at: datetime
-    updated_at: Optional[datetime]
+    created_at: Optional[datetime] = None  # was: created_at: datetime
+    updated_at: Optional[datetime] = None  # was: updated_at: datetime
     created_by: Optional[int]
 
 

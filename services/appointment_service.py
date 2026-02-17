@@ -40,13 +40,18 @@ class AppointmentService(BaseService):
             raise ValueError("Doctor is not currently accepting appointments")
         
         # Check doctor availability for the date/time
-        availability = self.doctor_repo.get_doctor_availability(
-            appointment_in.doctor_id,
-            appointment_in.appointment_date
-        )
-        
-        if not availability.get('available'):
-            raise ValueError(f"Doctor is not available on {appointment_in.appointment_date}")
+        # NOTE: We treat "no schedule configured" as available (not a hard block).
+        try:
+            availability = self.doctor_repo.get_doctor_availability(
+                appointment_in.doctor_id,
+                appointment_in.appointment_date
+            )
+            if availability and availability.get('available') is False:
+                raise ValueError(f"Doctor is not available on {appointment_in.appointment_date}")
+        except ValueError:
+            raise
+        except Exception:
+            pass
         
         # Check for conflicts
         has_conflict = self.appointment_repo.check_conflict(
@@ -65,13 +70,11 @@ class AppointmentService(BaseService):
         # Create appointment
         appointment_data = appointment_in.dict()
         appointment_data['appointment_code'] = appointment_code
+        appointment_data['appointment_number'] = appointment_code  # FIX: was missing, caused NOT NULL violation
         appointment_data['status'] = AppointmentStatus.SCHEDULED
         
         appointment = self.appointment_repo.create(appointment_data)
         self.commit()
-        
-        # Schedule reminder (implement separately)
-        # self._schedule_reminder(appointment)
         
         return appointment
     
@@ -158,14 +161,18 @@ class AppointmentService(BaseService):
         if not appointment:
             return None
         
-        # Check availability
-        availability = self.doctor_repo.get_doctor_availability(
-            appointment.doctor_id,
-            reschedule_data.new_date
-        )
-        
-        if not availability.get('available'):
-            raise ValueError(f"Doctor is not available on {reschedule_data.new_date}")
+        # Check availability (soft check — no schedule = allowed)
+        try:
+            availability = self.doctor_repo.get_doctor_availability(
+                appointment.doctor_id,
+                reschedule_data.new_date
+            )
+            if availability and availability.get('available') is False:
+                raise ValueError(f"Doctor is not available on {reschedule_data.new_date}")
+        except ValueError:
+            raise
+        except Exception:
+            pass
         
         # Check for conflicts
         has_conflict = self.appointment_repo.check_conflict(
@@ -179,7 +186,6 @@ class AppointmentService(BaseService):
         if has_conflict:
             raise ValueError("This time slot is already booked")
         
-        # Update appointment
         update_data = {
             'appointment_date': reschedule_data.new_date,
             'appointment_time': reschedule_data.new_time,
@@ -215,8 +221,8 @@ class AppointmentService(BaseService):
         if not appointment:
             return None
         
-        if appointment.status != AppointmentStatus.SCHEDULED:
-            raise ValueError("Only scheduled appointments can be checked in")
+        if appointment.status not in [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED]:
+            raise ValueError("Only scheduled or confirmed appointments can be checked in")
         
         update_data = {
             'status': AppointmentStatus.CHECKED_IN,
@@ -272,27 +278,23 @@ class AppointmentService(BaseService):
         current_date = from_date
         
         while current_date <= to_date:
-            # Get doctor's schedule for this day
             availability = self.doctor_repo.get_doctor_availability(doctor_id, current_date)
             
             if availability.get('available'):
-                # Get existing appointments for this day
                 existing_appointments = self.appointment_repo.get_by_date_range(
                     current_date,
                     current_date,
                     doctor_id=doctor_id
                 )
                 
-                # Generate time slots
-                start_time = datetime.strptime(availability['start_time'], '%H:%M').time()
-                end_time = datetime.strptime(availability['end_time'], '%H:%M').time()
-                slot_duration = doctor.average_consultation_time
+                start_time = self._parse_time_str(availability['start_time'])
+                end_time = self._parse_time_str(availability['end_time'])
+                slot_duration = doctor.average_consultation_time or 30
                 
                 current_time = datetime.combine(current_date, start_time)
                 end_datetime = datetime.combine(current_date, end_time)
                 
                 while current_time < end_datetime:
-                    # Check if slot is available
                     slot_time = current_time.time()
                     is_booked = any(
                         apt.appointment_time == slot_time
@@ -307,7 +309,7 @@ class AppointmentService(BaseService):
                             'duration_minutes': slot_duration,
                             'is_available': True,
                             'doctor_id': doctor_id,
-                            'doctor_name': doctor.user.full_name
+                            'doctor_name': doctor.user.full_name if doctor.user else f"Doctor #{doctor_id}"
                         })
                     
                     current_time += timedelta(minutes=slot_duration)
@@ -315,3 +317,13 @@ class AppointmentService(BaseService):
             current_date += timedelta(days=1)
         
         return available_slots
+    
+    @staticmethod
+    def _parse_time_str(time_str: str) -> time:
+        """Parse time string in either HH:MM or HH:MM:SS format"""
+        for fmt in ('%H:%M:%S', '%H:%M'):
+            try:
+                return datetime.strptime(time_str, fmt).time()
+            except ValueError:
+                continue
+        raise ValueError(f"Cannot parse time string: {time_str!r}")

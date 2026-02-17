@@ -14,7 +14,7 @@ class DepartmentRepository(BaseRepository[Department]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(Department, db, tenant_id, current_user_id)
+        super().__init__(db, Department, tenant_id, current_user_id)
     
     def get_by_code(self, code: str) -> Optional[Department]:
         """Get department by code"""

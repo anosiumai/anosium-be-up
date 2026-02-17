@@ -16,7 +16,7 @@ class AppointmentRepository(BaseRepository[Appointment]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(Appointment, db, tenant_id, current_user_id)
+        super().__init__(db, Appointment, tenant_id, current_user_id)
     
     def get_by_appointment_code(self, appointment_code: str) -> Optional[Appointment]:
         """Get appointment by code"""

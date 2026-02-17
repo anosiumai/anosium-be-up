@@ -15,7 +15,7 @@ class DailyMetricsRepository(BaseRepository[DailyMetrics]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(DailyMetrics, db, tenant_id, current_user_id)
+        super().__init__(db, DailyMetrics, tenant_id, current_user_id)
     
     def get_by_date(self, metric_date: date) -> Optional[DailyMetrics]:
         """Get metrics for a specific date"""
@@ -88,7 +88,7 @@ class SystemHealthMetricRepository(BaseRepository[SystemHealthMetric]):
     """Repository for System Health Metric operations"""
     
     def __init__(self, db: Session):
-        super().__init__(SystemHealthMetric, db, tenant_id=None, current_user_id=None)
+        super().__init__(db, SystemHealthMetric, tenant_id=None, current_user_id=None)
     
     def get_latest(self) -> Optional[SystemHealthMetric]:
         """Get latest health metric"""

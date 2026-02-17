@@ -14,7 +14,7 @@ class ServiceRepository(BaseRepository[Service]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(Service, db, tenant_id, current_user_id)
+        super().__init__(db, Service, tenant_id, current_user_id)
     
     def get_by_code(self, code: str) -> Optional[Service]:
         """Get service by code"""
@@ -127,7 +127,7 @@ class PackageRepository(BaseRepository[Package]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(Package, db, tenant_id, current_user_id)
+        super().__init__(db, Package, tenant_id, current_user_id)
     
     def get_by_code(self, code: str) -> Optional[Package]:
         """Get package by code"""

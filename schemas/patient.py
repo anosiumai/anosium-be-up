@@ -77,13 +77,14 @@ class PatientInDB(PatientBase):
     referred_by: Optional[str]
     is_active: bool
     notes: Optional[str]
-    created_at: datetime
-    updated_at: Optional[datetime]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 class Patient(PatientInDB):
     """Public patient schema"""
     full_name: str
     age: int
+    id: int
     
     @validator('full_name', pre=True, always=True)
     def set_full_name(cls, v, values):

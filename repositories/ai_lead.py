@@ -15,7 +15,7 @@ class AILeadRepository(BaseRepository[AILead]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(AILead, db, tenant_id, current_user_id)
+        super().__init__(db, AILead, tenant_id, current_user_id)
     
     def get_with_interactions(self, lead_id: int) -> Optional[AILead]:
         """Get lead with all interactions"""
@@ -229,7 +229,7 @@ class AIInteractionRepository(BaseRepository[AIInteraction]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(AIInteraction, db, tenant_id, current_user_id)
+        super().__init__(db, AIInteraction, tenant_id, current_user_id)
     
     def get_by_lead(
         self,

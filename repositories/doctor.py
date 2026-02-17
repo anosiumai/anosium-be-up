@@ -15,7 +15,7 @@ class DoctorRepository(BaseRepository[Doctor]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(Doctor, db, tenant_id, current_user_id)
+        super().__init__(db, Doctor, tenant_id, current_user_id)
     
     def get_by_doctor_code(self, doctor_code: str) -> Optional[Doctor]:
         """Get doctor by doctor code"""

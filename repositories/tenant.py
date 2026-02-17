@@ -9,7 +9,7 @@ class TenantRepository(BaseRepository[Tenant]):
     """Repository for Tenant operations"""
     
     def __init__(self, db: Session, current_user_id: Optional[int] = None):
-        super().__init__(Tenant, db, tenant_id=None, current_user_id=current_user_id)
+        super().__init__(db, Tenant, tenant_id=None, current_user_id=current_user_id)
     
     def get_by_slug(self, slug: str) -> Optional[Tenant]:
         """Get tenant by slug"""

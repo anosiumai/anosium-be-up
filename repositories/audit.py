@@ -16,7 +16,7 @@ class AuditLogRepository(BaseRepository[AuditLog]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(AuditLog, db, tenant_id, current_user_id)
+        super().__init__(db, AuditLog, tenant_id, current_user_id)
     
     def get_by_user(
         self,
@@ -165,7 +165,7 @@ class DataAccessLogRepository(BaseRepository[DataAccessLog]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(DataAccessLog, db, tenant_id, current_user_id)
+        super().__init__(db, DataAccessLog, tenant_id, current_user_id)
     
     def get_by_patient(
         self,

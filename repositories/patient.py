@@ -15,7 +15,7 @@ class PatientRepository(BaseRepository[Patient]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(Patient, db, tenant_id, current_user_id)
+        super().__init__(db, Patient, tenant_id, current_user_id)
     
     def get_by_patient_code(self, patient_code: str) -> Optional[Patient]:
         """Get patient by patient code"""
@@ -46,8 +46,24 @@ class PatientRepository(BaseRepository[Patient]):
             )
         )
         query = self._apply_tenant_filter(query)
-        
         return query.offset(skip).limit(limit).all()
+
+    def count_search(self, search_term: str) -> int:
+        """
+        Return the total number of patients matching search_term for this tenant.
+        Used by PatientService.get_patients() to build correct pagination totals.
+        """
+        query = self.db.query(func.count(Patient.id)).filter(
+            or_(
+                Patient.first_name.ilike(f"%{search_term}%"),
+                Patient.last_name.ilike(f"%{search_term}%"),
+                Patient.phone.ilike(f"%{search_term}%"),
+                Patient.patient_code.ilike(f"%{search_term}%"),
+                Patient.email.ilike(f"%{search_term}%"),
+            )
+        )
+        query = self._apply_tenant_filter(query)
+        return query.scalar()
     
     def get_by_gender(
         self,
@@ -58,7 +74,6 @@ class PatientRepository(BaseRepository[Patient]):
         """Get patients by gender"""
         query = self.db.query(Patient).filter(Patient.gender == gender)
         query = self._apply_tenant_filter(query)
-        
         return query.offset(skip).limit(limit).all()
     
     def get_by_age_range(
@@ -95,10 +110,8 @@ class PatientRepository(BaseRepository[Patient]):
     ) -> List[Patient]:
         """Get recently registered patients"""
         since_date = date.today() - timedelta(days=days)
-        
         query = self.db.query(Patient).filter(Patient.registration_date >= since_date)
         query = self._apply_tenant_filter(query)
-        
         return query.order_by(Patient.registration_date.desc()).limit(limit).all()
     
     def count_by_gender(self) -> Dict[str, int]:
@@ -108,49 +121,39 @@ class PatientRepository(BaseRepository[Patient]):
             func.count(Patient.id).label('count')
         )
         query = self._apply_tenant_filter(query)
-        
         results = query.group_by(Patient.gender).all()
-        
-        return {gender.value: count for gender, count in results}
+        return {gender: count for gender, count in results}
     
     def count_by_age_group(self) -> Dict[str, int]:
         """Count patients by age group"""
         today = date.today()
-        
         age_groups = {
-            '0-18': (0, 18),
+            '0-18':  (0,  18),
             '19-35': (19, 35),
             '36-50': (36, 50),
             '51-65': (51, 65),
-            '66+': (66, 150)
+            '66+':   (66, 150),
         }
-        
         results = {}
         for group_name, (min_age, max_age) in age_groups.items():
             max_birth_date = today.replace(year=today.year - min_age)
             min_birth_date = today.replace(year=today.year - max_age - 1)
-            
             query = self.db.query(func.count(Patient.id))
             query = self._apply_tenant_filter(query)
             query = query.filter(
                 and_(
                     Patient.date_of_birth <= max_birth_date,
-                    Patient.date_of_birth >= min_birth_date
+                    Patient.date_of_birth >= min_birth_date,
                 )
             )
-            
             results[group_name] = query.scalar()
-        
         return results
     
     def generate_patient_code(self) -> str:
         """Generate unique patient code"""
-        # Get count of patients in tenant
         query = self.db.query(func.count(Patient.id))
         query = self._apply_tenant_filter(query)
         count = query.scalar() or 0
-        
-        # Generate code: PAT-XXXXX
         return f"PAT-{count + 1:05d}"
     
     def check_duplicate(
@@ -161,7 +164,6 @@ class PatientRepository(BaseRepository[Patient]):
     ) -> Optional[Patient]:
         """Check for duplicate patient by phone/email"""
         conditions = [Patient.phone == phone]
-        
         if email:
             conditions.append(Patient.email == email)
         

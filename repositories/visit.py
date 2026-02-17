@@ -15,7 +15,7 @@ class VisitRepository(BaseRepository[Visit]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(Visit, db, tenant_id, current_user_id)
+        super().__init__(db, Visit, tenant_id, current_user_id)
     
     def get_by_visit_code(self, visit_code: str) -> Optional[Visit]:
         """Get visit by visit code"""

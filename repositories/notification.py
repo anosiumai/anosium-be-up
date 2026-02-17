@@ -18,7 +18,7 @@ class NotificationRepository(BaseRepository[Notification]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(Notification, db, tenant_id, current_user_id)
+        super().__init__(db, Notification, tenant_id, current_user_id)
     
     def get_by_user(
         self,
@@ -172,7 +172,7 @@ class NotificationTemplateRepository(BaseRepository[NotificationTemplate]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(NotificationTemplate, db, tenant_id, current_user_id)
+        super().__init__(db, NotificationTemplate, tenant_id, current_user_id)
     
     def get_by_code(self, code: str) -> Optional[NotificationTemplate]:
         """Get template by code"""
@@ -217,7 +217,7 @@ class NotificationPreferenceRepository(BaseRepository[NotificationPreference]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(NotificationPreference, db, tenant_id, current_user_id)
+        super().__init__(db, NotificationPreference, tenant_id, current_user_id)
     
     def get_by_user(self, user_id: int) -> Optional[NotificationPreference]:
         """Get preferences for a user"""

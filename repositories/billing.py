@@ -19,7 +19,7 @@ class InvoiceRepository(BaseRepository[Invoice]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(Invoice, db, tenant_id, current_user_id)
+        super().__init__(db, Invoice, tenant_id, current_user_id)
     
     def get_by_invoice_number(self, invoice_number: str) -> Optional[Invoice]:
         """Get invoice by invoice number"""
@@ -221,7 +221,7 @@ class PaymentRepository(BaseRepository[Payment]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(Payment, db, tenant_id, current_user_id)
+        super().__init__(db, Payment, tenant_id, current_user_id)
     
     def get_by_payment_number(self, payment_number: str) -> Optional[Payment]:
         """Get payment by payment number"""
@@ -353,7 +353,7 @@ class VisitServiceRepository(BaseRepository[VisitService]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(VisitService, db, tenant_id, current_user_id)
+        super().__init__(db, VisitService, tenant_id, current_user_id)
     
     def get_by_visit(self, visit_id: int) -> List[VisitService]:
         """Get all services for a visit"""

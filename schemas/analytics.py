@@ -53,6 +53,7 @@ class DashboardStats(BaseModel):
     today_revenue: int = 0
     pending_payments: int = 0
     active_patients: int = 0
+    recently_active_patients: int = 0
     total_doctors: int = 0
     new_leads_today: int = 0
     appointments_this_week: int = 0

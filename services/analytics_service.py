@@ -56,7 +56,8 @@ class AnalyticsService:
         pending_payments = self._get_pending_payments()
         
         # Active patients (patients with at least one visit in last 90 days)
-        active_patients = self._count_active_patients(days=90)
+        active_patients = self._count_active_patients()
+        recently_active_patients = self._count_recently_active_patients(days=90)
         
         # Total active doctors
         total_doctors = self._count_active_doctors()
@@ -85,6 +86,7 @@ class AnalyticsService:
             today_revenue=today_revenue,
             pending_payments=pending_payments,
             active_patients=active_patients,
+            recently_active_patients=recently_active_patients,
             total_doctors=total_doctors,
             new_leads_today=new_leads_today,
             appointments_this_week=appointments_this_week,
@@ -505,9 +507,21 @@ class AnalyticsService:
         )
     
     def _count_active_patients(self, days: int = 90) -> int:
-        """Count patients with visits in last N days"""
+        """Count all registered active patients for this tenant"""
+        return (
+            self.db.query(func.count(Patient.id))
+            .filter(
+                and_(
+                    Patient.tenant_id == self.tenant_id,
+                    Patient.is_active == True
+                )
+            )
+            .scalar() or 0
+        )
+
+    def _count_recently_active_patients(self, days: int = 90) -> int:
+        """Count patients with at least one visit in last N days"""
         cutoff_date = date.today() - timedelta(days=days)
-        
         return (
             self.db.query(func.count(func.distinct(Visit.patient_id)))
             .filter(
@@ -748,7 +762,7 @@ class AnalyticsService:
             activities.append({
                 'type': 'appointment',
                 'description': f"New appointment scheduled",
-                'timestamp': apt.created_at.isoformat(),
+                'timestamp': apt.created_at.isoformat() if apt.created_at else None,
                 'id': apt.id
             })
         
@@ -771,7 +785,9 @@ class AnalyticsService:
             })
         
         # Sort by timestamp
+        activities = [a for a in activities if a['timestamp'] is not None]
         activities.sort(key=lambda x: x['timestamp'], reverse=True)
+
         
         return activities[:limit]
     

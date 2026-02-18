@@ -19,7 +19,15 @@ class Visit(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
     doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"), nullable=False, index=True)
-    appointment_id = Column(Integer, ForeignKey("appointments.id", ondelete="SET NULL"), unique=True)
+    
+    # FIX: Removed unique=True. One appointment can have multiple visits (follow-ups, splits).
+    # Added index=True for query performance.
+    appointment_id = Column(
+        Integer, 
+        ForeignKey("appointments.id", ondelete="SET NULL"), 
+        nullable=True, 
+        index=True
+    )
     
     # Visit Details
     visit_code = Column(String(50), unique=True, nullable=False, index=True)
@@ -28,27 +36,25 @@ class Visit(Base):
     
     # Clinical Details
     chief_complaint = Column(Text)  # Main reason for visit
-    symptoms = Column(JSON, default=[])  # List of symptoms
+    
+    # FIX: Mutable default fixed. Use callable `list` instead of instance `[]`.
+    symptoms = Column(JSON, default=list)  
     
     # Vitals (stored as JSON for flexibility)
-    vitals = Column(JSON, default={
-        # "blood_pressure": "120/80",
-        # "temperature": 98.6,
-        # "pulse": 72,
-        # "weight": 70,
-        # "height": 170
-    })
+    # FIX: Mutable default fixed. Use callable `dict` instead of instance `{}`.
+    vitals = Column(JSON, default=dict)
     
     # Diagnosis & Treatment
     diagnosis = Column(Text)
-    diagnosis_codes = Column(JSON, default=[])  # ICD codes if needed
+    diagnosis_codes = Column(JSON, default=list)
     treatment_plan = Column(Text)
-    prescriptions = Column(JSON, default=[])  # List of medications
-    # Example: [{"medicine": "Paracetamol", "dosage": "500mg", "frequency": "Twice daily", "duration": "5 days"}]
+    # FIX: Mutable default fixed.
+    prescriptions = Column(JSON, default=list)
     
     # Lab Tests & Procedures
-    lab_tests_ordered = Column(JSON, default=[])
-    procedures_performed = Column(JSON, default=[])
+    # FIX: Mutable default fixed.
+    lab_tests_ordered = Column(JSON, default=list)
+    procedures_performed = Column(JSON, default=list)
     
     # Follow-up
     follow_up_required = Column(Boolean, default=False)
@@ -56,7 +62,8 @@ class Visit(Base):
     follow_up_notes = Column(Text)
     
     # Documents
-    attachments = Column(JSON, default=[])  # URLs to reports, scans, etc.
+    # FIX: Mutable default fixed.
+    attachments = Column(JSON, default=list)
     
     # Tracking
     created_at = Column(DateTime(timezone=True), server_default=func.now())

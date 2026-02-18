@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from datetime import date, datetime
 from models.visit import VisitStatus
@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 
 class Vitals(BaseModel):
     """Patient vitals"""
+    model_config = ConfigDict(extra='forbid')
+
     blood_pressure: Optional[str] = Field(None, pattern=r'^\d{2,3}/\d{2,3}$')
     temperature: Optional[float] = Field(None, ge=90, le=110)
     pulse: Optional[int] = Field(None, ge=30, le=200)
@@ -19,14 +21,13 @@ class Vitals(BaseModel):
     height: Optional[float] = Field(None, ge=0, le=300)
     bmi: Optional[float] = None
     
-    @validator('bmi', always=True)
-    def calculate_bmi(cls, v, values):
-        weight = values.get('weight')
-        height = values.get('height')
-        if weight and height and height > 0:
-            height_m = height / 100
-            return round(weight / (height_m ** 2), 2)
-        return v
+    @model_validator(mode='after')
+    def calculate_bmi(self):
+        # Only calculate if BMI is not explicitly provided and weight/height exist
+        if self.bmi is None and self.weight and self.height and self.height > 0:
+            height_m = self.height / 100
+            self.bmi = round(self.weight / (height_m ** 2), 2)
+        return self
 
 class Prescription(BaseModel):
     """Medication prescription"""
@@ -46,22 +47,23 @@ class LabTest(BaseModel):
 class VisitBase(BaseModel):
     """Base visit schema"""
     chief_complaint: str = Field(..., min_length=5)
-    symptoms: List[str] = []
+    # FIX: Mutable default fixed with default_factory
+    symptoms: List[str] = Field(default_factory=list)
     vitals: Optional[Vitals] = None
     diagnosis: Optional[str] = None
     treatment_plan: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class VisitCreate(VisitBase):
     """Create visit schema"""
     patient_id: int
     doctor_id: int
     appointment_id: Optional[int] = None
-    prescriptions: List[Prescription] = []
-    lab_tests_ordered: List[LabTest] = []
-    procedures_performed: List[str] = []
+    # FIX: Mutable defaults fixed with default_factory
+    prescriptions: List[Prescription] = Field(default_factory=list)
+    lab_tests_ordered: List[LabTest] = Field(default_factory=list)
+    procedures_performed: List[str] = Field(default_factory=list)
     follow_up_required: bool = False
     follow_up_date: Optional[date] = None
     follow_up_notes: Optional[str] = None
@@ -79,6 +81,8 @@ class VisitUpdate(BaseModel):
     follow_up_required: Optional[bool] = None
     follow_up_date: Optional[date] = None
     follow_up_notes: Optional[str] = None
+    # NOTE: Status transitions (e.g., completed -> in_progress) should be 
+    # enforced in the service layer, not just here.
     status: Optional[VisitStatus] = None
 
 class VisitInDB(VisitBase):
@@ -91,14 +95,15 @@ class VisitInDB(VisitBase):
     visit_code: str
     visit_date: datetime
     status: VisitStatus
-    diagnosis_codes: List[str]
-    prescriptions: List[Dict[str, Any]]
-    lab_tests_ordered: List[Dict[str, Any]]
-    procedures_performed: List[str]
+    diagnosis_codes: List[str] = Field(default_factory=list)
+    # DB returns JSON as dict/list, schema accepts Any for flexibility
+    prescriptions: List[Dict[str, Any]] = Field(default_factory=list)
+    lab_tests_ordered: List[Dict[str, Any]] = Field(default_factory=list)
+    procedures_performed: List[str] = Field(default_factory=list)
     follow_up_required: bool
     follow_up_date: Optional[date]
     follow_up_notes: Optional[str]
-    attachments: List[str]
+    attachments: List[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: Optional[datetime]
     completed_at: Optional[datetime]
@@ -111,4 +116,4 @@ class Visit(VisitInDB):
 class VisitWithDetails(Visit):
     """Visit with full details including billing"""
     invoice: Optional['Invoice'] = None
-    visit_services: List['VisitService'] = []
+    visit_services: List['VisitService'] = Field(default_factory=list)

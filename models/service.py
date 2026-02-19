@@ -28,7 +28,7 @@ class Service(Base):
     code = Column(String(50), nullable=False, index=True)
     name = Column(String(200), nullable=False)
     description = Column(Text)
-    service_type = Column(SQLEnum(ServiceType), nullable=False)
+    service_type = Column(SQLEnum(ServiceType, values_callable=lambda x: [e.value for e in x]), nullable=False)
     
     # Pricing
     base_price = Column(Integer, nullable=False)  # In cents/paise

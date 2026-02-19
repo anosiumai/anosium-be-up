@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 from models.service import ServiceType
-
+from pydantic import model_validator
 
 if TYPE_CHECKING:
     from schemas.department import Department
@@ -16,7 +16,13 @@ class ServiceBase(BaseModel):
     base_price: int = Field(..., ge=0)
     tax_percentage: int = Field(default=0, ge=0, le=100)
     estimated_duration_minutes: Optional[int] = Field(None, ge=0)
-    
+
+    @validator('service_type', pre=True)
+    def normalize_service_type(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
     class Config:
         from_attributes = True
 
@@ -48,13 +54,12 @@ class ServiceInDB(ServiceBase):
 class Service(ServiceInDB):
     """Public service schema"""
     department: Optional['Department'] = None
-    final_price: int  # base_price + tax
-    
-    @validator('final_price', pre=True, always=True)
-    def calculate_final_price(cls, v, values):
-        base = values.get('base_price', 0)
-        tax_pct = values.get('tax_percentage', 0)
-        return base + (base * tax_pct // 100)
+    final_price: int = 0
+
+    @model_validator(mode='after')
+    def compute_final_price(self):
+        self.final_price = self.base_price + (self.base_price * self.tax_percentage // 100)
+        return self
 
 class PackageServiceItem(BaseModel):
     """Service item in a package"""

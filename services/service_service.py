@@ -16,6 +16,7 @@ from schemas.service import (
     PackageWithServices
 )
 from services.base_service import BaseService
+from datetime import datetime, timezone
 
 
 class ServiceService(BaseService):
@@ -74,14 +75,22 @@ class ServiceService(BaseService):
             base_price=service_in.base_price,
             tax_percentage=service_in.tax_percentage,
             estimated_duration_minutes=service_in.estimated_duration_minutes,
-            is_active=True
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
         )
-        
+
         self.db.add(service)
-        self.commit()
-        self.refresh(service)
-        
-        return ServiceSchema.from_orm(service)
+        self.db.flush()      # sends INSERT, but stays in transaction
+        self.db.refresh(service)
+
+        try:
+            result = ServiceSchema.from_orm(service)
+        except Exception as e:
+            self.db.rollback()  # undo the INSERT
+            raise e
+
+        self.commit()        # only commits if serialization succeeded
+        return result
     
     def get_service(self, service_id: int) -> Optional[ServiceSchema]:
         """

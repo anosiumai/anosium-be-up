@@ -1119,7 +1119,8 @@ class AnalyticsService:
         today = date.today()
         for patient in patients_with_visits:
             if patient.date_of_birth:
-                age = (today - patient.date_of_birth).days // 365
+                dob = patient.date_of_birth.date() if isinstance(patient.date_of_birth, datetime) else patient.date_of_birth
+                age = (today - dob).days // 365
                 if age < 18:
                     age_groups['0-17'] += 1
                 elif age <= 30:

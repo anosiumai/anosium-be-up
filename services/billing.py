@@ -50,6 +50,22 @@ class BillingService:
     # private helpers
     # ------------------------------------------------------------------
 
+    def _normalize_status(self, status: Optional[str]) -> Optional[PaymentStatus]:
+        """Map frontend status strings to backend PaymentStatus enum."""
+        if not status:
+            return None
+        
+        mapping = {
+            # Frontend → Backend
+            'PENDING': PaymentStatus.PENDING,
+            'PARTIALLY_PAID': PaymentStatus.PARTIAL,  # Critical mapping!
+            'PAID': PaymentStatus.PAID,
+            'CANCELLED': PaymentStatus.CANCELLED,
+            'DRAFT': PaymentStatus.PENDING,  # Draft treated as pending backend-side
+            'OVERDUE': PaymentStatus.PENDING,  # Overdue is a UI concept, not a payment state
+        }
+        return mapping.get(status.upper())
+    
     def _get_patient(self, patient_id: int) -> Patient:
         """Resolve patient; raise if missing or wrong tenant."""
         patient = (
@@ -134,6 +150,7 @@ class BillingService:
         """
         # --- FK validation ------------------------------------------------
         self._get_patient(invoice_in.patient_id)
+        
 
         if invoice_in.visit_id:
             visit = self._get_visit(invoice_in.visit_id)
@@ -155,6 +172,7 @@ class BillingService:
         # --- build ORM invoice (amounts filled after items are created) ----
         invoice = Invoice(
             tenant_id=self.tenant_id,
+            # clinic_id=self.tenant_id,
             patient_id=invoice_in.patient_id,
             visit_id=invoice_in.visit_id,
             invoice_number=invoice_number,
@@ -245,17 +263,6 @@ class BillingService:
         return {"items": items, "total": total}
 
     def update_invoice(self, invoice_id: int, invoice_in: InvoiceUpdate) -> Optional[Invoice]:
-        """
-        Partial update of an invoice.
-
-        Rules
-        -----
-        * A ``PAID`` invoice cannot be edited (amounts are final).
-        * A ``CANCELLED`` or ``REFUNDED`` invoice is also locked.
-        * Changing ``discount_percentage`` triggers a full totals recalc.
-        * ``payment_status`` can only be explicitly set to ``CANCELLED``; other
-          transitions are derived automatically from payment amounts.
-        """
         invoice = self.invoice_repo.get_with_items(invoice_id)
         if not invoice:
             return None
@@ -269,25 +276,34 @@ class BillingService:
 
         update_data = invoice_in.model_dump(exclude_unset=True)
 
-        # --- status override: only CANCELLED is allowed via update ---------
-        new_status = update_data.pop("payment_status", None)
-        if new_status and new_status != PaymentStatus.CANCELLED:
-            raise ValueError(
-                "payment_status can only be explicitly set to 'cancelled'. "
-                "Other statuses are derived automatically."
-            )
+        # --- Handle status field (frontend compatibility) ------------------
+        # Accept either 'status' (frontend) or 'payment_status' (backend)
+        raw_status = update_data.pop("status", None) or update_data.pop("payment_status", None)
+        normalized_status = self._normalize_status(raw_status) if raw_status else None
 
-        # --- apply scalar fields ------------------------------------------
+        # --- Apply scalar fields ------------------------------------------
         for key, value in update_data.items():
             setattr(invoice, key, value)
 
-        # --- recalculate if discount changed or as a safety net -----------
+        # --- Recalculate totals -------------------------------------------
         self._recalculate_invoice_totals(invoice)
 
-        # --- honour an explicit cancellation ------------------------------
-        if new_status == PaymentStatus.CANCELLED:
-            invoice.payment_status = PaymentStatus.CANCELLED
+        # --- Handle status update logic -----------------------------------
+        if normalized_status:
+            # Allow manual updates for non-final statuses
+            if normalized_status in (PaymentStatus.PENDING, PaymentStatus.PARTIAL, PaymentStatus.CANCELLED):
+                invoice.payment_status = normalized_status
+            elif normalized_status == PaymentStatus.PAID:
+                # PAID should only be set via payment, not manual update
+                raise ValueError(
+                    "Status 'PAID' cannot be set manually. "
+                    "Please record a payment for the full balance instead."
+                )
+            else:
+                # Fallback to auto-derived status
+                invoice.payment_status = self._resolve_payment_status(invoice)
         else:
+            # Auto-derive status from amounts
             invoice.payment_status = self._resolve_payment_status(invoice)
 
         self.db.commit()

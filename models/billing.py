@@ -5,7 +5,7 @@ Production-grade architecture.
 """
 
 import enum
-
+from datetime import datetime, timezone
 from sqlalchemy import (
     Column,
     Integer,
@@ -114,7 +114,11 @@ class Invoice(Base):
     notes = Column(Text)
     terms_conditions = Column(Text)  # NEW
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(
+        DateTime(timezone=True), 
+        default=lambda: datetime.now(timezone.utc),  # Add this
+        server_default=func.now()
+    )
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     created_by = Column(
@@ -270,7 +274,11 @@ class Payment(Base):
 
     notes = Column(Text)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(
+        DateTime(timezone=True), 
+        default=lambda: datetime.now(timezone.utc),  # Add this
+        server_default=func.now()
+    )
 
     created_by = Column(
         BigInteger,
@@ -330,7 +338,11 @@ class VisitService(Base):
 
     notes = Column(Text)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(
+        DateTime(timezone=True), 
+        default=lambda: datetime.now(timezone.utc),  # Add this
+        server_default=func.now()
+    )
 
     # Relationships
     visit = relationship("Visit", back_populates="visit_services")

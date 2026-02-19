@@ -123,6 +123,9 @@ class UserService:
         # Apply tenant filter (unless super admin viewing all)
         if self.tenant_id:
             query = query.filter(User.tenant_id == self.tenant_id)
+            
+        if filters is None or 'is_active' not in filters:
+            query = query.filter(User.is_active == True)
         
         # Apply search
         if search:

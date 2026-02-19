@@ -297,6 +297,7 @@ async def delete_user(
         success=True,
         message="User deleted successfully"
     )
+    
 
 @router.post("/{user_id}/activate", response_model=SuccessResponse)
 async def activate_user(

@@ -247,7 +247,7 @@ async def get_doctor_stats(
 @router.post("/{doctor_id}/toggle-availability", response_model=Doctor)
 async def toggle_doctor_availability(
     doctor_id: int,
-    current_user: User = Depends(deps.require_role([UserRole.DOCTOR, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
+    current_user: User = Depends(deps.require_any_role([UserRole.DOCTOR, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
 ):

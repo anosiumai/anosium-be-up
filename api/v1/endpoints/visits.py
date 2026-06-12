@@ -17,7 +17,7 @@ router = APIRouter()
 @router.post("", response_model=Visit, status_code=status.HTTP_201_CREATED)
 async def create_visit(
     visit_in: VisitCreate,
-    current_user: User = Depends(deps.require_role([UserRole.DOCTOR, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
+    current_user: User = Depends(deps.require_any_role([UserRole.DOCTOR, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
 ):
@@ -105,7 +105,7 @@ async def get_visit(
 async def update_visit(
     visit_id: int,
     visit_in: VisitUpdate,
-    current_user: User = Depends(deps.require_role([UserRole.DOCTOR, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
+    current_user: User = Depends(deps.require_any_role([UserRole.DOCTOR, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
 ):
@@ -144,7 +144,7 @@ async def get_patient_visit_history(
 @router.post("/{visit_id}/complete", response_model=Visit)
 async def complete_visit(
     visit_id: int,
-    current_user: User = Depends(deps.require_role([UserRole.DOCTOR, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
+    current_user: User = Depends(deps.require_any_role([UserRole.DOCTOR, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
 ):

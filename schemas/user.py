@@ -97,3 +97,7 @@ class User(UserInDB):
     @validator('full_name', pre=True, always=True)
     def set_full_name(cls, v, values):
         return f"{values.get('first_name', '')} {values.get('last_name', '')}".strip()
+
+class ResetPasswordBody(BaseModel):
+    """Admin reset password body"""
+    new_password: str = Field(..., min_length=8)

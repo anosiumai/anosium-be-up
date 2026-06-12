@@ -6,7 +6,6 @@ Multi-tenant SaaS for healthcare management with AI automation
 import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any
-
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -15,17 +14,14 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import time
-
-
 from core.config import settings
 from core.database import init_db, check_db_connection, engine
-
-# ✅ CRITICAL FIX: Import and rebuild models BEFORE importing routers
-# This must happen before api_router import to avoid Pydantic forward reference errors
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from core.limiter import limiter
 from schemas import rebuild_all_models  
 rebuild_all_models()  # Rebuild immediately to resolve forward references
 
-# NOW safe to import routers (they reference Doctor and other models)
 from api.v1.endpoints import api_router
 
 # Configure logging
@@ -123,6 +119,9 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ============================================================================
 # MIDDLEWARE CONFIGURATION

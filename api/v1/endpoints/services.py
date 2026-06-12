@@ -79,81 +79,6 @@ async def list_services(
         page_size=pagination["page_size"],
         total_pages=(result["total"] + pagination["page_size"] - 1) // pagination["page_size"]
     )
-
-@router.get("/{service_id}", response_model=Service)
-async def get_service(
-    service_id: int,
-    current_user: User = Depends(deps.get_current_user),
-    current_tenant: Tenant = Depends(deps.get_current_tenant),
-    db: Session = Depends(deps.get_db)
-):
-    """
-    Get service by ID
-    """
-    service_svc = ServiceService(db, current_tenant.id, current_user.id)
-    service = service_svc.get_service(service_id)
-    
-    if not service:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Service not found"
-        )
-    
-    return service
-
-@router.put("/{service_id}", response_model=Service)
-async def update_service(
-    service_id: int,
-    service_in: ServiceUpdate,
-    current_user: User = Depends(deps.require_clinic_admin),
-    current_tenant: Tenant = Depends(deps.get_current_tenant),
-    db: Session = Depends(deps.get_db)
-):
-    """
-    Update service
-    
-    **Required Permissions:** Clinic Admin or Super Admin
-    """
-    service_svc = ServiceService(db, current_tenant.id, current_user.id)
-    
-    service = service_svc.update_service(service_id, service_in)
-    
-    if not service:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Service not found"
-        )
-    
-    return service
-
-@router.delete("/{service_id}", response_model=SuccessResponse)
-async def delete_service(
-    service_id: int,
-    soft_delete: bool = True,
-    current_user: User = Depends(deps.require_clinic_admin),
-    current_tenant: Tenant = Depends(deps.get_current_tenant),
-    db: Session = Depends(deps.get_db)
-):
-    """
-    Delete service (soft delete by default)
-    
-    **Required Permissions:** Clinic Admin or Super Admin
-    """
-    service_svc = ServiceService(db, current_tenant.id, current_user.id)
-    
-    success = service_svc.delete_service(service_id, soft=soft_delete)
-    
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Service not found"
-        )
-    
-    return SuccessResponse(
-        success=True,
-        message="Service deleted successfully"
-    )
-
 # ========== PACKAGES ==========
 
 @router.post("/packages", response_model=Package, status_code=status.HTTP_201_CREATED)
@@ -240,4 +165,80 @@ async def delete_package(
     return SuccessResponse(
         success=True,
         message="Package deleted successfully"
+    )
+
+# ========== SERVICES ==========
+
+@router.get("/{service_id}", response_model=Service)
+async def get_service(
+    service_id: int,
+    current_user: User = Depends(deps.get_current_user),
+    current_tenant: Tenant = Depends(deps.get_current_tenant),
+    db: Session = Depends(deps.get_db)
+):
+    """
+    Get service by ID
+    """
+    service_svc = ServiceService(db, current_tenant.id, current_user.id)
+    service = service_svc.get_service(service_id)
+    
+    if not service:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Service not found"
+        )
+    
+    return service
+
+@router.put("/{service_id}", response_model=Service)
+async def update_service(
+    service_id: int,
+    service_in: ServiceUpdate,
+    current_user: User = Depends(deps.require_clinic_admin),
+    current_tenant: Tenant = Depends(deps.get_current_tenant),
+    db: Session = Depends(deps.get_db)
+):
+    """
+    Update service
+    
+    **Required Permissions:** Clinic Admin or Super Admin
+    """
+    service_svc = ServiceService(db, current_tenant.id, current_user.id)
+    
+    service = service_svc.update_service(service_id, service_in)
+    
+    if not service:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Service not found"
+        )
+    
+    return service
+
+@router.delete("/{service_id}", response_model=SuccessResponse)
+async def delete_service(
+    service_id: int,
+    soft_delete: bool = True,
+    current_user: User = Depends(deps.require_clinic_admin),
+    current_tenant: Tenant = Depends(deps.get_current_tenant),
+    db: Session = Depends(deps.get_db)
+):
+    """
+    Delete service (soft delete by default)
+    
+    **Required Permissions:** Clinic Admin or Super Admin
+    """
+    service_svc = ServiceService(db, current_tenant.id, current_user.id)
+    
+    success = service_svc.delete_service(service_id, soft=soft_delete)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Service not found"
+        )
+    
+    return SuccessResponse(
+        success=True,
+        message="Service deleted successfully"
     )

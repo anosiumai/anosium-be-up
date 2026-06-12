@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from api import deps
-from schemas.user import User, UserCreate, UserUpdate
+from schemas.user import User, UserCreate, UserUpdate, ResetPasswordBody
 from schemas.common import PaginatedResponse, SuccessResponse
 from services.user_service import UserService
 from models.user import User as UserModel, UserRole
@@ -484,7 +484,7 @@ async def get_user_activity(
 @router.post("/{user_id}/reset-password", response_model=SuccessResponse)
 async def admin_reset_user_password(
     user_id: int,
-    new_password: str = Query(..., min_length=8),
+    body: ResetPasswordBody,
     current_user: UserModel = Depends(deps.require_clinic_admin),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
@@ -519,7 +519,7 @@ async def admin_reset_user_password(
                 detail="Cannot reset admin passwords"
             )
     
-    success = service.admin_reset_password(user_id, new_password)
+    success = service.admin_reset_password(user_id, body.new_password)
     
     if not success:
         raise HTTPException(

@@ -40,7 +40,7 @@ async def get_dashboard_stats(
 @router.get("/metrics/daily", response_model=DailyMetrics)
 async def get_daily_metrics(
     metric_date: date = Query(default_factory=date.today),
-    current_user: User = Depends(deps.require_role([UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
+    current_user: User = Depends(deps.require_any_role([UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
 ):
@@ -65,7 +65,7 @@ async def get_daily_metrics(
 async def get_revenue_report(
     from_date: date = Query(...),
     to_date: date = Query(...),
-    current_user: User = Depends(deps.require_role([UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
+    current_user: User = Depends(deps.require_any_role([UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
 ):

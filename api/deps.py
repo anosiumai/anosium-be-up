@@ -8,7 +8,10 @@ from fastapi import Depends, HTTPException, status, Header, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from jose import JWTError
-
+from fastapi import Depends, HTTPException, status, Header, Query, Request, Security
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyHeader
+from models.integration import APIKey
+from datetime import datetime
 from core.database import get_db
 from core.security import decode_token
 from models.user import User, UserRole
@@ -18,6 +21,8 @@ from repositories.tenant import TenantRepository
 
 # Security scheme
 security = HTTPBearer()
+
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 def get_current_user(
@@ -150,20 +155,17 @@ def require_role(required_role: UserRole):
             UserRole.STAFF: 1,
         }
         
-        # FIX: Handle both single role and list of roles
         if isinstance(required_role, list):
-            # If list provided, check if user has ANY of the roles
-            if current_user.role not in required_role:
-                # Also check hierarchy for backward compatibility
-                user_level = role_hierarchy.get(current_user.role, 0)
-                required_levels = [role_hierarchy.get(role, 0) for role in required_role]
-                if user_level < min(required_levels):
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Insufficient permissions. One of {[r.value for r in required_role]} roles required."
-                    )
+            # Explicit list: user must hold one of the listed roles exactly.
+            # Return immediately on match — do NOT fall through to hierarchy.
+            if current_user.role in required_role:
+                return current_user
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Insufficient permissions. One of {[r.value for r in required_role]} roles required."
+            )
         else:
-            # Single role check (original logic)
+            # Single role: hierarchical check (user level >= required level)
             user_level = role_hierarchy.get(current_user.role, 0)
             required_level = role_hierarchy.get(required_role, 0)
             
@@ -348,3 +350,129 @@ def get_optional_user(
         return get_current_user(credentials, db)
     except HTTPException:
         return None
+
+def get_tenant_from_api_key(
+    api_key: Optional[str] = Security(api_key_header),
+    db: Session = Depends(get_db)
+) -> Optional[Tenant]:
+    """
+    Validate API key and return its tenant.
+    Returns None if no key provided (not an error — caller decides).
+    Raises 401 if key is provided but invalid.
+    """
+    if not api_key:
+        return None
+
+    # API keys are stored as prefix + hash, e.g. "ak_live_<random>"
+    # Find by prefix first, then verify hash
+    prefix = api_key[:10] if len(api_key) >= 10 else api_key
+
+    key_obj = (
+        db.query(APIKey)
+        .filter(
+            APIKey.prefix == prefix,
+            APIKey.is_active == True,
+        )
+        .first()
+    )
+
+    if not key_obj:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key"
+        )
+
+    # Check expiry
+    if key_obj.expires_at and key_obj.expires_at < datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key expired"
+        )
+
+    # Verify hash
+    from core.security import verify_api_key
+    if not verify_api_key(api_key, key_obj.key_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key"
+        )
+
+    # Update usage tracking
+    key_obj.last_used_at = datetime.utcnow()
+    key_obj.usage_count = (key_obj.usage_count or 0) + 1
+    db.flush()
+
+    # Return the tenant this key belongs to
+    tenant_repo = TenantRepository(db)
+    tenant = tenant_repo.get(key_obj.tenant_id)
+
+    if not tenant or not tenant.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tenant inactive"
+        )
+
+    return tenant
+
+
+def get_tenant_from_jwt(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        HTTPBearer(auto_error=False)
+    ),
+    db: Session = Depends(get_db),
+    x_tenant_id: Optional[int] = Header(None, alias="X-Tenant-ID")
+) -> Optional[Tenant]:
+    """
+    Extract tenant from JWT bearer token.
+    Returns None if no token provided.
+    """
+    if not credentials:
+        return None
+
+    payload = decode_token(credentials.credentials)
+    if not payload:
+        return None
+
+    user_id = payload.get("user_id")
+    if not user_id:
+        return None
+
+    user_repo = UserRepository(db)
+    user = user_repo.get(user_id)
+    if not user or not user.is_active:
+        return None
+
+    tenant_id = (
+        x_tenant_id
+        if user.role.value == "SUPER_ADMIN" and x_tenant_id
+        else user.tenant_id
+    )
+
+    tenant_repo = TenantRepository(db)
+    tenant = tenant_repo.get(tenant_id)
+
+    if not tenant or not tenant.is_active:
+        return None
+
+    return tenant
+
+
+def require_api_key_or_jwt(
+    api_key_tenant: Optional[Tenant] = Depends(get_tenant_from_api_key),
+    jwt_tenant: Optional[Tenant] = Depends(get_tenant_from_jwt),
+) -> Tenant:
+    """
+    Accept either a valid API key (X-API-Key header) or a JWT bearer token.
+    Used for endpoints callable by both AI chatbots and authenticated users.
+    Raises 401 if neither is provided or valid.
+    """
+    tenant = api_key_tenant or jwt_tenant
+
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required: provide a Bearer token or X-API-Key header",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return tenant

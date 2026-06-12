@@ -7,9 +7,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import bcrypt
 from jose import JWTError, jwt
-
 from core.config import settings
-
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
@@ -78,91 +76,6 @@ def validate_password_strength(password: str) -> tuple[bool, Optional[str]]:
             return False, "Password must contain at least one special character"
     
     return True, None
-
-
-def create_access_token(
-    data: Dict[str, Any],
-    expires_delta: Optional[timedelta] = None
-) -> str:
-    """
-    Create JWT access token
-    
-    Args:
-        data: Data to encode in the token (should include: user_id, tenant_id, role)
-        expires_delta: Token expiration time (defaults to settings value)
-        
-    Returns:
-        Encoded JWT token
-    """
-    to_encode = data.copy()
-    
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
-    
-    to_encode.update({
-        "exp": expire,
-        "iat": datetime.utcnow(),
-        "type": "access"
-    })
-    
-    encoded_jwt = jwt.encode(
-        to_encode,
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM
-    )
-    
-    return encoded_jwt
-
-
-def create_refresh_token(
-    data: Dict[str, Any],
-    expires_delta: Optional[timedelta] = None
-) -> str:
-    """
-    Create JWT refresh token
-    
-    NOTE: This creates a JWT-based refresh token, but auth_service.py
-    uses database-stored refresh tokens. Consider which approach to use:
-    
-    - JWT refresh tokens: Stateless, but can't be revoked easily
-    - DB refresh tokens: Can be revoked, but requires DB lookup
-    
-    Current recommendation: Use DB-based approach (in auth_service.py)
-    
-    Args:
-        data: Data to encode in the token
-        expires_delta: Token expiration time (defaults to settings value)
-        
-    Returns:
-        Encoded JWT refresh token
-    """
-    to_encode = data.copy()
-    
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(
-            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
-        )
-    
-    to_encode.update({
-        "exp": expire,
-        "iat": datetime.utcnow(),
-        "type": "refresh"
-    })
-    
-    encoded_jwt = jwt.encode(
-        to_encode,
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM
-    )
-    
-    return encoded_jwt
-
 
 def decode_token(token: str) -> Optional[Dict[str, Any]]:
     """
@@ -248,109 +161,6 @@ def extract_tenant_id_from_token(token: str) -> Optional[int]:
         return None
     
     return payload.get("tenant_id")
-
-
-def create_password_reset_token(user_id: int) -> str:
-    """
-    Create password reset token
-    
-    NOTE: auth_service.py uses DB-based reset tokens (more secure).
-    This JWT-based approach is kept for backward compatibility.
-    
-    Args:
-        user_id: User ID
-        
-    Returns:
-        Encoded JWT token for password reset
-    """
-    expire = datetime.utcnow() + timedelta(hours=1)
-    
-    to_encode = {
-        "user_id": user_id,
-        "exp": expire,
-        "type": "password_reset"
-    }
-    
-    encoded_jwt = jwt.encode(
-        to_encode,
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM
-    )
-    
-    return encoded_jwt
-
-
-def verify_password_reset_token(token: str) -> Optional[int]:
-    """
-    Verify password reset token and extract user ID
-    
-    Args:
-        token: Password reset token
-        
-    Returns:
-        User ID or None if invalid
-    """
-    payload = decode_token(token)
-    if not payload:
-        return None
-    
-    if payload.get("type") != "password_reset":
-        return None
-    
-    if is_token_expired(payload):
-        return None
-    
-    return payload.get("user_id")
-
-
-def create_email_verification_token(user_id: int) -> str:
-    """
-    Create email verification token
-    
-    Args:
-        user_id: User ID
-        
-    Returns:
-        Encoded JWT token for email verification
-    """
-    expire = datetime.utcnow() + timedelta(days=7)
-    
-    to_encode = {
-        "user_id": user_id,
-        "exp": expire,
-        "type": "email_verification"
-    }
-    
-    encoded_jwt = jwt.encode(
-        to_encode,
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM
-    )
-    
-    return encoded_jwt
-
-
-def verify_email_verification_token(token: str) -> Optional[int]:
-    """
-    Verify email verification token and extract user ID
-    
-    Args:
-        token: Email verification token
-        
-    Returns:
-        User ID or None if invalid
-    """
-    payload = decode_token(token)
-    if not payload:
-        return None
-    
-    if payload.get("type") != "email_verification":
-        return None
-    
-    if is_token_expired(payload):
-        return None
-    
-    return payload.get("user_id")
 
 
 def hash_api_key(api_key: str) -> str:

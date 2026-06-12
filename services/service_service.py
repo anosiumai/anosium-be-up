@@ -7,7 +7,8 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 
-from models.service import Service, Package, PackageService, ServiceType
+from models.service import Service, Package, ServiceType
+from models.service import PackageService as PackageServiceModel
 from models.department import Department
 from repositories.service import ServiceRepository, PackageRepository
 from schemas.service import (

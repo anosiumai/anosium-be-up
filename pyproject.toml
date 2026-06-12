@@ -12,6 +12,7 @@ dependencies = [
     "python-dotenv>=1.2.1",
     "python-jose[cryptography]>=3.5.0",
     "reportlab>=4.4.9",
+    "slowapi>=0.1.9",
     "sqlalchemy>=2.0.46",
     "uvicorn>=0.40.0",
 ]

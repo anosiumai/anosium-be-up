@@ -1,5 +1,5 @@
 # 📁 api/v1/endpoints/ai_leads.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request  # ← add Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -13,13 +13,16 @@ from services.ai_lead_service import AILeadService
 from models.user import User, UserRole
 from models.tenant import Tenant
 from models.ai_lead import LeadStatus
+from core.limiter import limiter
 
 router = APIRouter()
 
 @router.post("", response_model=AILead, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def create_lead(
+    request: Request,
     lead_in: AILeadCreate,
-    current_tenant: Tenant = Depends(deps.get_current_tenant),
+    current_tenant: Tenant = Depends(deps.require_api_key_or_jwt),
     db: Session = Depends(deps.get_db)
 ):
     """
@@ -121,10 +124,12 @@ async def update_lead(
     return lead
 
 @router.post("/{lead_id}/interactions", response_model=SuccessResponse)
+@limiter.limit("60/minute")
 async def add_interaction(
+    request: Request,
     lead_id: int,
     interaction_in: AIInteractionCreate,
-    current_tenant: Tenant = Depends(deps.get_current_tenant),
+    current_tenant: Tenant = Depends(deps.require_api_key_or_jwt),
     db: Session = Depends(deps.get_db)
 ):
     """
@@ -148,7 +153,7 @@ async def add_interaction(
 async def convert_lead(
     lead_id: int,
     conversion_data: LeadConversion,
-    current_user: User = Depends(deps.require_role([UserRole.RECEPTIONIST, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
+    current_user: User = Depends(deps.require_any_role([UserRole.RECEPTIONIST, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
 ):

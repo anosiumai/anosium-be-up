@@ -1,7 +1,6 @@
-# repositories/appointment.py
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, and_, or_
+from sqlalchemy import func, and_, or_, DateTime
 from datetime import datetime, date, time, timedelta
 
 from models.appointment import Appointment, AppointmentStatus
@@ -16,7 +15,7 @@ class AppointmentRepository(BaseRepository[Appointment]):
         tenant_id: Optional[int] = None,
         current_user_id: Optional[int] = None
     ):
-        super().__init__(db, Appointment, tenant_id, current_user_id)
+        super().__init__(Appointment, db, tenant_id, current_user_id)
     
     def get_by_appointment_code(self, appointment_code: str) -> Optional[Appointment]:
         """Get appointment by code"""
@@ -244,10 +243,7 @@ class AppointmentRepository(BaseRepository[Appointment]):
                     AppointmentStatus.SCHEDULED,
                     AppointmentStatus.CONFIRMED
                 ]),
-                func.datetime(
-                    Appointment.appointment_date,
-                    Appointment.appointment_time
-                ) <= reminder_time
+                (Appointment.appointment_date + Appointment.appointment_time).cast(DateTime) <= reminder_time
             )
         )
         query = self._apply_tenant_filter(query)

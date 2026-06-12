@@ -3,12 +3,10 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import secrets
 import logging
-
-# ✅ Import from centralized security module
 from core.config import settings
 from core.security import verify_password, get_password_hash, validate_password_strength
 from models.user import User
-from models.security import RefreshToken, LoginAttempt, PasswordResetToken
+from models.security import RefreshToken, LoginAttempt, PasswordResetToken, EmailVerificationToken
 from repositories.user import UserRepository
 from schemas.user import UserCreate
 from services.base_service import BaseService
@@ -375,32 +373,46 @@ class AuthService(BaseService):
         
         return True
     
-    def verify_email(self, token: str) -> bool:
-        """
-        Verify user email using verification token
-        
-        Args:
-            token: Email verification token
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        from core.security import verify_email_verification_token
-        
-        user_id = verify_email_verification_token(token)
-        if not user_id:
-            return False
-        
-        user = self.user_repo.get(user_id)
-        if not user:
-            return False
-        
-        # Mark email as verified
-        self.user_repo.update(user_id, {'is_verified': True})
+    def create_email_verification_token(self, user_id: int) -> str:
+        """Create DB-stored email verification token"""
+        # Invalidate any existing unused tokens first so only one link is valid at a time
+        self.db.query(EmailVerificationToken).filter(
+            EmailVerificationToken.user_id == user_id,
+            EmailVerificationToken.is_used == False
+        ).update({'is_used': True})
+
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=24)
+
+        verification_token = EmailVerificationToken(
+            user_id=user_id,
+            token=token,
+            expires_at=expires_at
+        )
+        self.db.add(verification_token)
         self.commit()
-        
-        logger.info(f"Email verified for user {user_id}")
-        
+
+        logger.info(f"Email verification token created for user {user_id}")
+        # TODO: send email with token
+        return token
+
+    def verify_email(self, token: str) -> bool:
+        """Verify email using DB token"""
+        token_obj = self.db.query(EmailVerificationToken).filter(
+            EmailVerificationToken.token == token,
+            EmailVerificationToken.is_used == False,
+            EmailVerificationToken.expires_at > datetime.utcnow()
+        ).first()
+
+        if not token_obj:
+            return False
+
+        self.user_repo.update(token_obj.user_id, {'is_verified': True})
+        token_obj.is_used = True
+        token_obj.used_at = datetime.utcnow()
+        self.commit()
+
+        logger.info(f"Email verified for user {token_obj.user_id}")
         return True
     
     def get_user_by_email(self, email: str) -> Optional[User]:

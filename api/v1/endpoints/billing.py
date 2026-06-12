@@ -20,7 +20,7 @@ router = APIRouter()
 @router.post("/invoices", response_model=Invoice, status_code=status.HTTP_201_CREATED)
 async def create_invoice(
     invoice_in: InvoiceCreate,
-    current_user: User = Depends(deps.require_role([UserRole.RECEPTIONIST, UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
+    current_user: User = Depends(deps.require_any_role([UserRole.RECEPTIONIST, UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
 ):
@@ -103,7 +103,7 @@ async def get_invoice(
 async def update_invoice(
     invoice_id: int,
     invoice_in: InvoiceUpdate,
-    current_user: User = Depends(deps.require_role([UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
+    current_user: User = Depends(deps.require_any_role([UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
 ):
@@ -155,7 +155,7 @@ async def download_invoice_pdf(
 @router.post("/payments", response_model=Payment, status_code=status.HTTP_201_CREATED)
 async def create_payment(
     payment_in: PaymentCreate,
-    current_user: User = Depends(deps.require_role([UserRole.RECEPTIONIST, UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
+    current_user: User = Depends(deps.require_any_role([UserRole.RECEPTIONIST, UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db)
 ):
@@ -212,7 +212,7 @@ async def list_payments(
 
 @router.get("/summary", response_model=PaymentSummary)
 async def get_payment_summary(
-    current_user: User = Depends(deps.require_role([UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
+    current_user: User = Depends(deps.require_any_role([UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
     db: Session = Depends(deps.get_db),
     from_date: Optional[date] = None,

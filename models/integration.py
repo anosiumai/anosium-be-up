@@ -1,7 +1,48 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.types import TypeDecorator
 from core.database import Base
+from core.config import settings
+import base64
+import hashlib
+import json
+from cryptography.fernet import Fernet
+
+class EncryptedJSON(TypeDecorator):
+    """
+    Encrypts JSON data before storing it in the database and decrypts it when retrieving.
+    Stores the data as an encrypted Text representation in the database.
+    """
+    impl = Text
+    cache_ok = True
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Derive a 32-byte key from settings.SECRET_KEY for Fernet cipher
+        key_bytes = settings.SECRET_KEY.encode('utf-8')
+        derived_key = base64.urlsafe_b64encode(hashlib.sha256(key_bytes).digest())
+        self.fernet = Fernet(derived_key)
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        json_str = json.dumps(value)
+        encrypted_bytes = self.fernet.encrypt(json_str.encode('utf-8'))
+        return encrypted_bytes.decode('utf-8')
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        try:
+            decrypted_bytes = self.fernet.decrypt(value.encode('utf-8'))
+            return json.loads(decrypted_bytes.decode('utf-8'))
+        except Exception:
+            # Fallback if decryption fails (e.g. legacy data stored in plaintext)
+            try:
+                return json.loads(value)
+            except Exception:
+                return value
 
 class APIKey(Base):
     """
@@ -109,7 +150,7 @@ class ThirdPartyIntegration(Base):
     integration_type = Column(String(50), nullable=False)  # payment, sms, email
     
     # Credentials (encrypted)
-    credentials = Column(JSON, nullable=False)  # API keys, secrets
+    credentials = Column(EncryptedJSON, nullable=False)  # API keys, secrets
     
     # Configuration
     config = Column(JSON, default={})

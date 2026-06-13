@@ -2,7 +2,7 @@
 models/patient.py — aligned with actual DB schema (from column inspection).
 
 Key differences from previous version:
-  - clinic_id added (nullable after fix_schema.sql)
+  - clinic_id removed (legacy migration artefact replaced by tenant_id)
   - gender / blood_group are plain VARCHAR in DB, not PG enum types
     → use String columns; Python enum is for validation only
   - medical_history column added (JSON)
@@ -52,7 +52,7 @@ class Patient(Base):
 
     id        = Column(Integer, primary_key=True, index=True)
 
-    clinic_id = Column(Integer, nullable=True) 
+    # clinic_id removed.
     tenant_id = Column(
         Integer,
         ForeignKey("tenants.id", ondelete="CASCADE"),

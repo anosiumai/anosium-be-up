@@ -597,40 +597,36 @@ class AnalyticsService:
             .scalar() or 0
         )
         
-        # Returning patients (had visits before this date)
-        visits_on_date = (
+        # Subquery: Find IDs of patients who have visited prior to the target date
+        previous_visitors_subquery = (
             self.db.query(Visit.patient_id)
             .filter(
                 and_(
                     Visit.tenant_id == self.tenant_id,
-                    Visit.visit_date == target_date
+                    Visit.visit_date < target_date
                 )
             )
-            .distinct()
-            .all()
+            .subquery()
         )
         
-        returning = 0
-        for (patient_id,) in visits_on_date:
-            previous_visits = (
-                self.db.query(func.count(Visit.id))
-                .filter(
-                    and_(
-                        Visit.tenant_id == self.tenant_id,
-                        Visit.patient_id == patient_id,
-                        Visit.visit_date < target_date
-                    )
+        # Returning patients: Count distinct patients visiting today who exist in the subquery
+        returning = (
+            self.db.query(func.count(func.distinct(Visit.patient_id)))
+            .filter(
+                and_(
+                    Visit.tenant_id == self.tenant_id,
+                    Visit.visit_date == target_date,
+                    Visit.patient_id.in_(previous_visitors_subquery)
                 )
-                .scalar() or 0
             )
-            if previous_visits > 0:
-                returning += 1
+            .scalar() or 0
+        )
         
         return {
             'new': new_patients,
             'returning': returning
         }
-    
+        
     def _get_revenue_stats_for_date(self, target_date: date) -> Dict[str, int]:
         """Get revenue statistics for a specific date"""
         # Invoices created on this date

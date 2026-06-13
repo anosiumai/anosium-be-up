@@ -57,24 +57,24 @@ class Invoice(Base):
 
     __tablename__ = "invoices"
 
-    id = Column(BigInteger, primary_key=True)
+    id = Column(Integer, primary_key=True)
 
     tenant_id = Column(
-        BigInteger,
+        Integer,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
 
     patient_id = Column(
-        BigInteger,
+        Integer,
         ForeignKey("patients.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
 
     visit_id = Column(
-        BigInteger,
+        Integer,
         ForeignKey("visits.id", ondelete="SET NULL"),
         unique=True,
         index=True
@@ -97,7 +97,7 @@ class Invoice(Base):
     discount_amount = Column(BigInteger, default=0)
     discount_percentage = Column(Integer, default=0)
 
-    discount_reason = Column(Text)  # NEW
+    discount_reason = Column(Text)
     tax_amount = Column(BigInteger, default=0)
 
     total_amount = Column(BigInteger, nullable=False)
@@ -112,17 +112,17 @@ class Invoice(Base):
     )
 
     notes = Column(Text)
-    terms_conditions = Column(Text)  # NEW
+    terms_conditions = Column(Text)
 
     created_at = Column(
         DateTime(timezone=True), 
-        default=lambda: datetime.now(timezone.utc),  # Add this
+        default=lambda: datetime.now(timezone.utc),
         server_default=func.now()
     )
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     created_by = Column(
-        BigInteger,
+        Integer,
         ForeignKey("users.id", ondelete="SET NULL"),
         index=True
     )
@@ -164,7 +164,7 @@ class Invoice(Base):
 
     __table_args__ = (
 
-        # Prevent negative money bugs (VERY common production issue)
+        # Prevent negative money bugs
         CheckConstraint("subtotal >= 0"),
         CheckConstraint("discount_amount >= 0"),
         CheckConstraint("tax_amount >= 0"),
@@ -188,17 +188,17 @@ class InvoiceItem(Base):
 
     __tablename__ = "invoice_items"
 
-    id = Column(BigInteger, primary_key=True)
+    id = Column(Integer, primary_key=True)
 
     invoice_id = Column(
-        BigInteger,
+        Integer,
         ForeignKey("invoices.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
 
     service_id = Column(
-        BigInteger,
+        Integer,
         ForeignKey("services.id", ondelete="SET NULL"),
         index=True
     )
@@ -238,17 +238,17 @@ class Payment(Base):
 
     __tablename__ = "payments"
 
-    id = Column(BigInteger, primary_key=True)
+    id = Column(Integer, primary_key=True)
 
     tenant_id = Column(
-        BigInteger,
+        Integer,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
 
     invoice_id = Column(
-        BigInteger,
+        Integer,
         ForeignKey("invoices.id", ondelete="CASCADE"),
         nullable=False,
         index=True
@@ -276,12 +276,12 @@ class Payment(Base):
 
     created_at = Column(
         DateTime(timezone=True), 
-        default=lambda: datetime.now(timezone.utc),  # Add this
+        default=lambda: datetime.now(timezone.utc),
         server_default=func.now()
     )
 
     created_by = Column(
-        BigInteger,
+        Integer,
         ForeignKey("users.id", ondelete="SET NULL")
     )
 
@@ -317,17 +317,17 @@ class VisitService(Base):
 
     __tablename__ = "visit_services"
 
-    id = Column(BigInteger, primary_key=True)
+    id = Column(Integer, primary_key=True)
 
     visit_id = Column(
-        BigInteger,
+        Integer,
         ForeignKey("visits.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
 
     service_id = Column(
-        BigInteger,
+        Integer,
         ForeignKey("services.id", ondelete="SET NULL"),
         index=True
     )
@@ -340,7 +340,7 @@ class VisitService(Base):
 
     created_at = Column(
         DateTime(timezone=True), 
-        default=lambda: datetime.now(timezone.utc),  # Add this
+        default=lambda: datetime.now(timezone.utc),
         server_default=func.now()
     )
 

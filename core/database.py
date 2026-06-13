@@ -7,12 +7,15 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool, QueuePool
 from typing import Generator
+from fastapi import APIRouter, HTTPException, status
+from core.database import check_db_connection
 import logging
 
 from core.config import settings
 
 # Configure logging
 logger = logging.getLogger(__name__)
+router = APIRouter()
 
 # Create SQLAlchemy engine
 engine_kwargs = {
@@ -229,3 +232,31 @@ class Transaction:
         finally:
             if self.should_close:
                 self.db.close()
+
+@router.get("/ping", summary="Basic API Health Check")
+def ping():
+    """
+    Check if the API container is running.
+    Does NOT check dependencies (use /health for readiness probes).
+    """
+    return {"status": "ok"}
+
+@router.get("/health", summary="Deep Health Check (Readiness Probe)")
+def health_check():
+    """
+    Check if the application and its dependencies (Database) are healthy.
+    Load balancers should point here.
+    """
+    is_db_healthy = check_db_connection()
+    
+    if not is_db_healthy:
+        # Return 503 Service Unavailable so orchestrators know to route traffic away
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection failed"
+        )
+        
+    return {
+        "status": "healthy",
+        "database": "connected"
+    }

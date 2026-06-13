@@ -511,6 +511,43 @@ class DepartmentService:
         Returns:
             List of department summaries
         """
+        # Replaced the nonexistent get_all() with get_multi()
+        departments = self.dept_repo.get_multi(skip=0, limit=1000)
+        
+        summaries = []
+        for dept in departments:
+            # Count doctors in this department
+            doctor_count = (
+                self.db.query(func.count(Doctor.id))
+                .filter(
+                    and_(
+                        Doctor.department_id == dept.id,
+                        Doctor.is_active == True
+                    )
+                )
+                .scalar() or 0
+            )
+            
+            summaries.append({
+                'id': dept.id,
+                'name': dept.name,
+                'code': dept.code,
+                'doctor_count': doctor_count,
+                'has_head': dept.head_doctor_id is not None,
+                'is_active': dept.is_active
+            })
+        
+        # Sort by doctor count descending
+        summaries.sort(key=lambda x: x['doctor_count'], reverse=True)
+        
+        return summaries
+        
+        """
+        Get summary statistics for all departments
+        
+        Returns:
+            List of department summaries
+        """
         departments = self.dept_repo.get_all()
         
         summaries = []

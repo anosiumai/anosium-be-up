@@ -258,8 +258,8 @@ class ServiceService(BaseService):
             # Hard delete - check for dependencies
             # Check if used in packages
             package_count = (
-                self.db.query(func.count(PackageService.id))
-                .filter(PackageService.service_id == service_id)
+                self.db.query(func.count(PackageServiceModel.id))
+                .filter(PackageServiceModel.service_id == service_id)
                 .scalar() or 0
             )
             
@@ -585,7 +585,7 @@ class PackageService(BaseService):
         # Add services to package
         if package_in.service_ids:
             for service_id in package_in.service_ids:
-                package_service = PackageService(
+                package_service = PackageServiceModel(
                     package_id=package.id,
                     service_id=service_id
                 )
@@ -751,13 +751,13 @@ class PackageService(BaseService):
                     raise ValueError(f"Service '{service.name}' is not active")
             
             # Remove old services
-            self.db.query(PackageService).filter(
-                PackageService.package_id == package_id
+            self.db.query(PackageServiceModel).filter(
+                PackageServiceModel.package_id == package_id
             ).delete()
             
             # Add new services
             for service_id in package_in.service_ids:
-                package_service = PackageService(
+                package_service = PackageServiceModel(
                     package_id=package.id,
                     service_id=service_id
                 )
@@ -790,8 +790,8 @@ class PackageService(BaseService):
             self.commit()
         else:
             # Hard delete - remove services first
-            self.db.query(PackageService).filter(
-                PackageService.package_id == package_id
+            self.db.query(PackageServiceModel).filter(
+                PackageServiceModel.package_id == package_id
             ).delete()
             
             self.db.delete(package)
@@ -835,11 +835,11 @@ class PackageService(BaseService):
         
         # Check if already in package
         existing = (
-            self.db.query(PackageService)
+            self.db.query(PackageServiceModel)
             .filter(
                 and_(
-                    PackageService.package_id == package_id,
-                    PackageService.service_id == service_id
+                    PackageServiceModel.package_id == package_id,
+                    PackageServiceModel.service_id == service_id
                 )
             )
             .first()
@@ -849,7 +849,7 @@ class PackageService(BaseService):
             raise ValueError("Service is already in this package")
         
         # Add service to package
-        package_service = PackageService(
+        package_service = PackageServiceModel(
             package_id=package_id,
             service_id=service_id
         )
@@ -880,10 +880,10 @@ class PackageService(BaseService):
             return None
         
         # Remove service from package
-        self.db.query(PackageService).filter(
+        self.db.query(PackageServiceModel).filter(
             and_(
-                PackageService.package_id == package_id,
-                PackageService.service_id == service_id
+                PackageServiceModel.package_id == package_id,
+                PackageServiceModel.service_id == service_id
             )
         ).delete()
         

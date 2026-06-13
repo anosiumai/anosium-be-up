@@ -165,6 +165,38 @@ class AppointmentRepository(BaseRepository[Appointment]):
         exclude_id: Optional[int] = None
     ) -> bool:
         """Check if appointment time conflicts with existing appointments"""
+        from datetime import datetime as dt, timedelta
+        from sqlalchemy import text
+        
+        # Calculate the proposed end time
+        start_datetime = dt.combine(appointment_date, appointment_time)
+        end_datetime = start_datetime + timedelta(minutes=duration_minutes)
+        end_time = end_datetime.time()
+        
+        query = self.db.query(Appointment).filter(
+            and_(
+                Appointment.doctor_id == doctor_id,
+                Appointment.appointment_date == appointment_date,
+                Appointment.status.notin_([
+                    AppointmentStatus.CANCELLED,
+                    AppointmentStatus.NO_SHOW
+                ]),
+                # Delegate overlap math to the SQL engine
+                text("""
+                    appointment_time < :end_time 
+                    AND (appointment_time + duration_minutes * INTERVAL '1 minute') > :start_time
+                """).bindparams(start_time=appointment_time, end_time=end_time)
+            )
+        )
+        query = self._apply_tenant_filter(query)
+        
+        if exclude_id:
+            query = query.filter(Appointment.id != exclude_id)
+        
+        # Return True if at least one overlapping appointment exists
+        return query.first() is not None
+        
+        """Check if appointment time conflicts with existing appointments"""
         # Calculate time range
         from datetime import datetime as dt, timedelta
         

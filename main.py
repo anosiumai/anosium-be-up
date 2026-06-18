@@ -19,16 +19,31 @@ from core.database import init_db, check_db_connection, engine
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from core.limiter import limiter
-from schemas import rebuild_all_models  
+from schemas import rebuild_all_models
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from core.logging import configure_logging
+
 rebuild_all_models()  # Rebuild immediately to resolve forward references
 
 from api.v1.endpoints import api_router
 
 # Configure logging
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+configure_logging(
+    level=settings.LOG_LEVEL,
+    fmt=getattr(settings, "LOG_FORMAT", "text"),
 )
+
+if getattr(settings, "SENTRY_DSN", None) and settings.SENTRY_DSN.startswith("https://"):
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        integrations=[FastApiIntegration(), SqlalchemyIntegration()],
+        traces_sample_rate=0.1,  # ponytail: 10% trace sampling, tune per traffic
+        send_default_pii=False,
+    )
+
 logger = logging.getLogger(__name__)
 
 

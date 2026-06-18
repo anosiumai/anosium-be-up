@@ -2,6 +2,8 @@
 Schemas Package - Pydantic Models
 COMPLETE FIX with all nested models in namespace
 """
+import logging
+_log = logging.getLogger(__name__)
 
 # ============================================================================
 # TIER 1: Base models with NO dependencies on other schemas
@@ -104,9 +106,6 @@ def rebuild_all_models():
     forward reference ANYWHERE in your schemas, including nested references.
     """
     
-    print("\n🔧 Rebuilding Pydantic models in dependency order...")
-    print("=" * 70)
-    
     failed_models = []
     
     # COMPLETE namespace with ALL models (including nested ones like InvoiceItem)
@@ -161,7 +160,6 @@ def rebuild_all_models():
     }
     
     # TIER 1: Base models (no dependencies)
-    print("\n📦 Tier 1: Base models (Tenant, User, Patient)...")
     tier1_models = [
         TenantBase, TenantCreate, TenantUpdate, TenantInDB, Tenant,
         UserBase, UserCreate, UserUpdate, UserInDB, User,
@@ -171,13 +169,11 @@ def rebuild_all_models():
     for model in tier1_models:
         try:
             model.model_rebuild(_types_namespace=namespace)
-            print(f"   ✅ {model.__name__}")
+           
         except Exception as e:
             failed_models.append((model.__name__, str(e)))
-            print(f"   ❌ {model.__name__}: {str(e)[:60]}")
     
     # TIER 2: Circular dependencies (Department ↔ Doctor)
-    print("\n🔄 Tier 2: Circular dependencies (Department ↔ Doctor)...")
     tier2_models = [
         DepartmentBase, DepartmentCreate, DepartmentUpdate, DepartmentInDB, Department,
         DoctorBase, DoctorCreate, DoctorUpdate, DoctorInDB, Doctor,
@@ -186,13 +182,11 @@ def rebuild_all_models():
     for model in tier2_models:
         try:
             model.model_rebuild(_types_namespace=namespace)
-            print(f"   ✅ {model.__name__}")
+            _log.debug("Model rebuilt: %s", model.__name__)
         except Exception as e:
             failed_models.append((model.__name__, str(e)))
-            print(f"   ❌ {model.__name__}: {str(e)[:60]}")
     
     # TIER 3: Complex relationships (including nested models)
-    print("\n🏗️  Tier 3: Complex relationships...")
     tier3_models = [
         # Services
         ServiceBase, ServiceCreate, ServiceUpdate, Service,
@@ -222,22 +216,15 @@ def rebuild_all_models():
     for model in tier3_models:
         try:
             model.model_rebuild(_types_namespace=namespace)
-            print(f"   ✅ {model.__name__}")
         except Exception as e:
             failed_models.append((model.__name__, str(e)))
-            print(f"   ⚠️  {model.__name__}: {str(e)[:60]}")
     
     # Summary
-    print("\n" + "=" * 70)
     if failed_models:
-        print(f"⚠️  {len(failed_models)} model(s) failed to rebuild:")
         for name, error in failed_models:
-            print(f"   - {name}: {error[:80]}")
-        print("\n⚠️  Warning: Some models may not work correctly!")
+            _log.warning("Model rebuild failed: %s — %s", name, error[:80])
     else:
-        total = len(tier1_models) + len(tier2_models) + len(tier3_models)
-        print(f"✅ SUCCESS! All {total} models rebuilt successfully!")
-    print("=" * 70 + "\n")
+        total = len(tier1_models) + len(tier2_models) + len(tier3_models)    
 
 
 # ============================================================================

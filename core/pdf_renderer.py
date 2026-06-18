@@ -14,6 +14,9 @@ from typing import TYPE_CHECKING
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
+import logging
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from models.billing import Invoice
@@ -126,4 +129,4 @@ if __name__ == "__main__":
     pdf = render_invoice_pdf(inv)
     assert pdf[:4] == b"%PDF", "output is not a valid PDF"
     assert len(pdf) > 1000, "PDF suspiciously small"
-    print(f"OK — {len(pdf)} bytes, starts with {pdf[:8]!r}")
+    logger.debug("PDF render OK", extra={"size_bytes": len(pdf), "header": pdf[:8].hex()})

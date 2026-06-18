@@ -18,6 +18,7 @@ from models.user import User, UserRole
 from models.tenant import Tenant
 from repositories.user import UserRepository
 from repositories.tenant import TenantRepository
+from core.database import get_read_db
 
 # Security scheme
 security = HTTPBearer()

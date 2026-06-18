@@ -5,6 +5,7 @@ from typing import Optional
 from datetime import date, datetime, timedelta
 
 from api import deps
+from api.deps import get_read_db  
 from schemas.analytics import (
     DashboardStats, DailyMetrics, RevenueReport,
     AppointmentReport, PatientReport
@@ -19,7 +20,8 @@ router = APIRouter()
 async def get_dashboard_stats(
     current_user: User = Depends(deps.get_current_user),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
-    db: Session = Depends(deps.get_db)
+    db: Session = Depends(deps.get_db),
+    read_db: Session = Depends(get_read_db),
 ):
     """
     Get dashboard statistics and metrics
@@ -32,7 +34,7 @@ async def get_dashboard_stats(
     - Top services
     - Recent activity
     """
-    service = AnalyticsService(db, current_tenant.id)
+    service = AnalyticsService(db=db, tenant_id=current_tenant.id, read_db=read_db)
     
     stats = service.get_dashboard_stats()
     return stats
@@ -49,7 +51,7 @@ async def get_daily_metrics(
     
     **Required Permissions:** Accountant, Clinic Admin, or Super Admin
     """
-    service = AnalyticsService(db, current_tenant.id)
+    service = AnalyticsService(db=db, tenant_id=current_tenant.id)
     
     metrics = service.get_daily_metrics(metric_date)
     
@@ -67,7 +69,8 @@ async def get_revenue_report(
     to_date: date = Query(...),
     current_user: User = Depends(deps.require_any_role([UserRole.ACCOUNTANT, UserRole.CLINIC_ADMIN, UserRole.SUPER_ADMIN])),
     current_tenant: Tenant = Depends(deps.get_current_tenant),
-    db: Session = Depends(deps.get_db)
+    db: Session = Depends(deps.get_db),
+    read_db: Session = Depends(get_read_db),
 ):
     """
     Get revenue report for date range
@@ -86,7 +89,7 @@ async def get_revenue_report(
             detail="Date range cannot exceed 365 days"
         )
     
-    service = AnalyticsService(db, current_tenant.id)
+    service = AnalyticsService(db=db, tenant_id=current_tenant.id, read_db=read_db)
     
     report = service.get_revenue_report(from_date, to_date)
     return report
@@ -115,7 +118,7 @@ async def get_appointment_report(
             detail="Date range cannot exceed 365 days"
         )
     
-    service = AnalyticsService(db, current_tenant.id)
+    service = AnalyticsService(db=db, tenant_id=current_tenant.id)
     
     report = service.get_appointment_report(from_date, to_date)
     return report
@@ -146,7 +149,7 @@ async def get_patient_report(
             detail="Date range cannot exceed 365 days"
         )
     
-    service = AnalyticsService(db, current_tenant.id)
+    service = AnalyticsService(db=db, tenant_id=current_tenant.id)
     
     report = service.get_patient_report(from_date, to_date)
     return report
@@ -168,7 +171,7 @@ async def get_monthly_trends(
     - Appointment trends
     - Patient growth trends
     """
-    service = AnalyticsService(db, current_tenant.id)
+    service = AnalyticsService(db=db, tenant_id=current_tenant.id)
     
     trends = service.get_monthly_trends(months)
     return trends
@@ -192,7 +195,7 @@ async def get_doctor_performance(
     - Patient satisfaction
     - Average consultation time
     """
-    service = AnalyticsService(db, current_tenant.id)
+    service = AnalyticsService(db=db, tenant_id=current_tenant.id)
     
     performance = service.get_doctor_performance(from_date, to_date)
     return performance

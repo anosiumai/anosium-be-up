@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     DATABASE_MAX_OVERFLOW: int = 10
     DATABASE_POOL_TIMEOUT: int = 30
     DATABASE_POOL_RECYCLE: int = 3600
+    DATABASE_READ_URL: str = ""  # defaults to DATABASE_URL if empty
     
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production-min-32-chars"

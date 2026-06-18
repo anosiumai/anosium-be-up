@@ -9,8 +9,26 @@ from sqlalchemy.pool import NullPool, QueuePool
 from typing import Generator
 from fastapi import APIRouter, HTTPException, status
 import logging
-
 from core.config import settings
+
+read_engine = create_engine(
+    settings.DATABASE_READ_URL or settings.DATABASE_URL,
+    pool_pre_ping=True,
+    **({
+        "poolclass": QueuePool,
+        "pool_size": settings.DATABASE_POOL_SIZE,
+        "max_overflow": settings.DATABASE_MAX_OVERFLOW,
+    } if settings.ENVIRONMENT == "production" else {"poolclass": NullPool})
+)
+
+ReadSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=read_engine)
+
+def get_read_db() -> Generator[Session, None, None]:
+    db = ReadSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # Configure logging
 logger = logging.getLogger(__name__)

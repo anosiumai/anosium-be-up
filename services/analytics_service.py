@@ -28,8 +28,9 @@ from schemas.analytics import (
 class AnalyticsService:
     """Service for analytics and reporting operations"""
     
-    def __init__(self, db: Session, tenant_id: int):
+    def __init__(self, db: Session, tenant_id: int, read_db: Session = None):
         self.db = db
+        self.rdb = read_db or db
         self.tenant_id = tenant_id
         self.metrics_repo = DailyMetricsRepository(db, tenant_id)
     
@@ -208,7 +209,7 @@ class AnalyticsService:
         """Generate comprehensive appointment report"""
         # Get all appointments in range
         appointments_query = (
-            self.db.query(Appointment)
+            self.rdb.query(Appointment)
             .filter(
                 and_(
                     Appointment.tenant_id == self.tenant_id,
@@ -262,7 +263,7 @@ class AnalyticsService:
         """Generate comprehensive patient report"""
         # New registrations
         new_registrations = (
-            self.db.query(func.count(Patient.id))
+            self.rdb.query(func.count(Patient.id))
             .filter(
                 and_(
                     Patient.tenant_id == self.tenant_id,
@@ -275,7 +276,7 @@ class AnalyticsService:
         
         # Total active patients (those with visits in period)
         total_active = (
-            self.db.query(func.count(func.distinct(Visit.patient_id)))
+            self.rdb.query(func.count(func.distinct(Visit.patient_id)))
             .filter(
                 and_(
                     Visit.tenant_id == self.tenant_id,
@@ -288,7 +289,7 @@ class AnalyticsService:
         
         # Total visits
         total_visits = (
-            self.db.query(func.count(Visit.id))
+            self.rdb.query(func.count(Visit.id))
             .filter(
                 and_(
                     Visit.tenant_id == self.tenant_id,
@@ -358,7 +359,7 @@ class AnalyticsService:
             to_date = date.today()
         
         doctors = (
-            self.db.query(Doctor)
+            self.rdb.query(Doctor)
             .join(User, User.id == Doctor.user_id)
             .filter(
                 and_(
@@ -374,7 +375,7 @@ class AnalyticsService:
         for doctor in doctors:
             # Get doctor's appointments
             appointments = (
-                self.db.query(Appointment)
+                self.rdb.query(Appointment)
                 .filter(
                     and_(
                         Appointment.tenant_id == self.tenant_id,
@@ -393,7 +394,7 @@ class AnalyticsService:
             
             # Get revenue generated
             revenue = (
-                self.db.query(func.sum(Invoice.total_amount))
+                self.rdb.query(func.sum(Invoice.total_amount))
                 .join(Visit, Visit.id == Invoice.visit_id)
                 .filter(
                     and_(
@@ -442,7 +443,7 @@ class AnalyticsService:
     def _count_appointments_by_date(self, target_date: date) -> int:
         """Count appointments for a specific date"""
         return (
-            self.db.query(func.count(Appointment.id))
+            self.rdb.query(func.count(Appointment.id))
             .filter(
                 and_(
                     Appointment.tenant_id == self.tenant_id,
@@ -455,7 +456,7 @@ class AnalyticsService:
     def _count_appointments_date_range(self, from_date: date, to_date: date) -> int:
         """Count appointments in date range"""
         return (
-            self.db.query(func.count(Appointment.id))
+            self.rdb.query(func.count(Appointment.id))
             .filter(
                 and_(
                     Appointment.tenant_id == self.tenant_id,
@@ -469,7 +470,7 @@ class AnalyticsService:
     def _get_revenue_by_date(self, target_date: date) -> int:
         """Get total revenue for a specific date (in cents)"""
         return (
-            self.db.query(func.sum(Payment.amount))
+            self.rdb.query(func.sum(Payment.amount))
             .filter(
                 and_(
                     Payment.tenant_id == self.tenant_id,
@@ -482,7 +483,7 @@ class AnalyticsService:
     def _get_revenue_date_range(self, from_date: date, to_date: date) -> int:
         """Get total revenue for date range (in cents)"""
         return (
-            self.db.query(func.sum(Payment.amount))
+            self.rdb.query(func.sum(Payment.amount))
             .filter(
                 and_(
                     Payment.tenant_id == self.tenant_id,
@@ -496,7 +497,7 @@ class AnalyticsService:
     def _get_pending_payments(self) -> int:
         """Get total pending payment amount (in cents)"""
         return (
-            self.db.query(func.sum(Invoice.total_amount - Invoice.paid_amount))
+            self.rdb.query(func.sum(Invoice.total_amount - Invoice.paid_amount))
             .filter(
                 and_(
                     Invoice.tenant_id == self.tenant_id,
@@ -509,7 +510,7 @@ class AnalyticsService:
     def _count_active_patients(self, days: int = 90) -> int:
         """Count all registered active patients for this tenant"""
         return (
-            self.db.query(func.count(Patient.id))
+            self.rdb.query(func.count(Patient.id))
             .filter(
                 and_(
                     Patient.tenant_id == self.tenant_id,
@@ -523,7 +524,7 @@ class AnalyticsService:
         """Count patients with at least one visit in last N days"""
         cutoff_date = date.today() - timedelta(days=days)
         return (
-            self.db.query(func.count(func.distinct(Visit.patient_id)))
+            self.rdb.query(func.count(func.distinct(Visit.patient_id)))
             .filter(
                 and_(
                     Visit.tenant_id == self.tenant_id,
@@ -536,7 +537,7 @@ class AnalyticsService:
     def _count_active_doctors(self) -> int:
         """Count active doctors"""
         return (
-            self.db.query(func.count(Doctor.id))
+            self.rdb.query(func.count(Doctor.id))
             .filter(
                 and_(
                     Doctor.tenant_id == self.tenant_id,
@@ -549,7 +550,7 @@ class AnalyticsService:
     def _count_leads_by_date(self, target_date: date) -> int:
         """Count AI leads created on a specific date"""
         return (
-            self.db.query(func.count(AILead.id))
+            self.rdb.query(func.count(AILead.id))
             .filter(
                 and_(
                     AILead.tenant_id == self.tenant_id,
@@ -566,7 +567,7 @@ class AnalyticsService:
     def _get_appointment_stats_for_date(self, target_date: date) -> Dict[str, int]:
         """Get appointment statistics for a specific date"""
         appointments = (
-            self.db.query(Appointment)
+            self.rdb.query(Appointment)
             .filter(
                 and_(
                     Appointment.tenant_id == self.tenant_id,
@@ -587,7 +588,7 @@ class AnalyticsService:
         """Get patient statistics for a specific date"""
         # New patients registered on this date
         new_patients = (
-            self.db.query(func.count(Patient.id))
+            self.rdb.query(func.count(Patient.id))
             .filter(
                 and_(
                     Patient.tenant_id == self.tenant_id,
@@ -599,7 +600,7 @@ class AnalyticsService:
         
         # Subquery: Find IDs of patients who have visited prior to the target date
         previous_visitors_subquery = (
-            self.db.query(Visit.patient_id)
+            self.rdb.query(Visit.patient_id)
             .filter(
                 and_(
                     Visit.tenant_id == self.tenant_id,
@@ -611,7 +612,7 @@ class AnalyticsService:
         
         # Returning patients: Count distinct patients visiting today who exist in the subquery
         returning = (
-            self.db.query(func.count(func.distinct(Visit.patient_id)))
+            self.rdb.query(func.count(func.distinct(Visit.patient_id)))
             .filter(
                 and_(
                     Visit.tenant_id == self.tenant_id,
@@ -631,7 +632,7 @@ class AnalyticsService:
         """Get revenue statistics for a specific date"""
         # Invoices created on this date
         invoices = (
-            self.db.query(Invoice)
+            self.rdb.query(Invoice)
             .filter(
                 and_(
                     Invoice.tenant_id == self.tenant_id,
@@ -654,7 +655,7 @@ class AnalyticsService:
     def _get_ai_stats_for_date(self, target_date: date) -> Dict[str, int]:
         """Get AI lead statistics for a specific date"""
         leads = (
-            self.db.query(AILead)
+            self.rdb.query(AILead)
             .filter(
                 and_(
                     AILead.tenant_id == self.tenant_id,
@@ -670,7 +671,7 @@ class AnalyticsService:
         
         # FIX: Query appointments instead of non-existent field
         bookings = (
-            self.db.query(func.count(Appointment.id))
+            self.rdb.query(func.count(Appointment.id))
             .filter(
                 and_(
                     Appointment.tenant_id == self.tenant_id,

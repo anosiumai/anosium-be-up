@@ -188,3 +188,8 @@ def verify_api_key(plain_api_key: str, hashed_api_key: str) -> bool:
         True if API key is valid, False otherwise
     """
     return verify_password(plain_api_key, hashed_api_key)
+
+def create_email_verification_token(email: str) -> str:
+    expire = datetime.utcnow() + timedelta(hours=24)
+    payload = {"sub": email, "exp": expire, "type": "email_verification"}
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)

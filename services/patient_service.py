@@ -35,6 +35,13 @@ class PatientService(BaseService):
         if duplicate:
             raise ValueError(f"Patient with phone {patient_in.phone} already exists")
 
+        tenant = self.tenant_repo.get(self.tenant_id)  # or however you access tenant
+        max_patients = tenant.enabled_features.get('max_patients', 50)
+        if max_patients != -1:
+            current_count = self.patient_repo.count({})
+            if current_count >= max_patients:
+                raise ValueError(f"Patient limit ({max_patients}) reached for your subscription tier")
+
         patient_code = self.patient_repo.generate_patient_code()
 
         patient_data = patient_in.dict()

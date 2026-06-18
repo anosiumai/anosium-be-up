@@ -3,10 +3,18 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import secrets
 import logging
+
+# ✅ Import from centralized security module
 from core.config import settings
-from core.security import verify_password, get_password_hash, validate_password_strength
+from core.security import (
+    verify_password,
+    get_password_hash,
+    validate_password_strength,
+    create_email_verification_token,
+)
+from core.email import dispatch_email
 from models.user import User
-from models.security import RefreshToken, LoginAttempt, PasswordResetToken, EmailVerificationToken
+from models.security import RefreshToken, LoginAttempt, PasswordResetToken
 from repositories.user import UserRepository
 from schemas.user import UserCreate
 from services.base_service import BaseService
@@ -53,8 +61,26 @@ class AuthService(BaseService):
     
     def create_user(self, user_in: UserCreate) -> User:
         """
-        Create new user with password validation
-        
+        Create new user with password validation.
+
+        Side-effects
+        ------------
+        On success, two best-effort emails are dispatched (via
+        `core.email.dispatch_email`, which never raises):
+
+        * **Email verification** — a token is generated with
+          `create_email_verification_token` and a "verify your email" link is
+          sent. The user remains `is_verified=False` until they click it and
+          call `/auth/verify-email`.
+        * **Welcome email** — sent in parallel so the user has something in
+          their inbox immediately even before verifying.
+
+        Both emails are best-effort: if SMTP isn't configured (e.g. local
+        dev) or the send fails, user creation still succeeds. The user can
+        always request a new verification link separately if one is added in
+        the future, or an admin can call `verify_email` manually via the
+        token flow.
+
         Args:
             user_in: User creation schema
             
@@ -84,7 +110,29 @@ class AuthService(BaseService):
         self.commit()
         
         logger.info(f"New user created: {user.email} (ID: {user.id})")
-        
+
+        # --- best-effort onboarding emails ---------------------------------
+        try:
+            verification_token = create_email_verification_token(user.id)
+            dispatch_email(
+                "email_verification",
+                to_email=user.email,
+                user_name=user.full_name,
+                verification_token=verification_token,
+            )
+        except Exception:
+            # Token creation itself is in-memory (JWT) and should never fail,
+            # but guard anyway — onboarding email must never block registration.
+            logger.exception("Failed to dispatch verification email for user %s", user.id)
+
+        dispatch_email(
+            "welcome",
+            to_email=user.email,
+            user_name=user.full_name,
+            tenant_name=None,
+            role=user.role.value if user.role else None,
+        )
+
         return user
     
     def create_access_token(self, user: User) -> str:
@@ -254,7 +302,12 @@ class AuthService(BaseService):
     
     def create_password_reset_token(self, email: str) -> Optional[str]:
         """
-        Create password reset token
+        Create password reset token and dispatch the reset email.
+
+        The email dispatch is best-effort (via `dispatch_email`, which never
+        raises) — if SMTP is down, the token is still created and returned so
+        the caller's "always return success" behaviour at the API layer
+        (anti email-enumeration) is preserved either way.
         
         Args:
             email: User email
@@ -281,10 +334,14 @@ class AuthService(BaseService):
         self.commit()
         
         logger.info(f"Password reset token created for user {user.id}")
-        
-        # TODO: Send email with reset link
-        # self._send_password_reset_email(user, token)
-        
+
+        dispatch_email(
+            "password_reset",
+            to_email=user.email,
+            user_name=user.full_name,
+            reset_token=token,
+        )
+
         return token
     
     def reset_password(self, token: str, new_password: str) -> bool:
@@ -373,46 +430,32 @@ class AuthService(BaseService):
         
         return True
     
-    def create_email_verification_token(self, user_id: int) -> str:
-        """Create DB-stored email verification token"""
-        # Invalidate any existing unused tokens first so only one link is valid at a time
-        self.db.query(EmailVerificationToken).filter(
-            EmailVerificationToken.user_id == user_id,
-            EmailVerificationToken.is_used == False
-        ).update({'is_used': True})
-
-        token = secrets.token_urlsafe(32)
-        expires_at = datetime.utcnow() + timedelta(hours=24)
-
-        verification_token = EmailVerificationToken(
-            user_id=user_id,
-            token=token,
-            expires_at=expires_at
-        )
-        self.db.add(verification_token)
-        self.commit()
-
-        logger.info(f"Email verification token created for user {user_id}")
-        # TODO: send email with token
-        return token
-
     def verify_email(self, token: str) -> bool:
-        """Verify email using DB token"""
-        token_obj = self.db.query(EmailVerificationToken).filter(
-            EmailVerificationToken.token == token,
-            EmailVerificationToken.is_used == False,
-            EmailVerificationToken.expires_at > datetime.utcnow()
-        ).first()
-
-        if not token_obj:
+        """
+        Verify user email using verification token
+        
+        Args:
+            token: Email verification token
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        from core.security import verify_email_verification_token
+        
+        user_id = verify_email_verification_token(token)
+        if not user_id:
             return False
-
-        self.user_repo.update(token_obj.user_id, {'is_verified': True})
-        token_obj.is_used = True
-        token_obj.used_at = datetime.utcnow()
+        
+        user = self.user_repo.get(user_id)
+        if not user:
+            return False
+        
+        # Mark email as verified
+        self.user_repo.update(user_id, {'is_verified': True})
         self.commit()
-
-        logger.info(f"Email verified for user {token_obj.user_id}")
+        
+        logger.info(f"Email verified for user {user_id}")
+        
         return True
     
     def get_user_by_email(self, email: str) -> Optional[User]:

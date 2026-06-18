@@ -1,15 +1,10 @@
-# core/limiter.py
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from core.config import settings
 
-def get_real_ip(request):
-    """Use X-Forwarded-For when behind a proxy, fall back to direct IP"""
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    return get_remote_address(request)
-
+# ponytail: one object, main.py does the rest
 limiter = Limiter(
-    key_func=get_real_ip,
-    default_limits=["60/minute"]
+    key_func=get_remote_address,
+    default_limits=[f"{settings.RATE_LIMIT_PER_MINUTE}/minute"],
+    enabled=settings.RATE_LIMIT_ENABLED,
 )

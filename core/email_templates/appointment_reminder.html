@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Appointment Reminder</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f5f7; font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7; padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; overflow:hidden;">
+          <tr>
+            <td style="background-color:#3B82F6; padding:24px 32px;">
+              <span style="color:#ffffff; font-size:18px; font-weight:600;">{{ clinic_name }}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              <h1 style="margin:0 0 16px; font-size:20px; color:#111827;">Appointment Reminder</h1>
+              <p style="margin:0 0 16px; font-size:14px; line-height:1.6; color:#374151;">
+                Hi {{ patient_name }},
+              </p>
+              <p style="margin:0 0 24px; font-size:14px; line-height:1.6; color:#374151;">
+                This is a friendly reminder of your upcoming appointment with
+                <strong>Dr. {{ doctor_name }}</strong> at {{ clinic_name }}.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                     style="background-color:#F9FAFB; border-radius:6px; margin-bottom:24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="margin:0 0 8px; font-size:13px; color:#6B7280;">Date</p>
+                    <p style="margin:0 0 16px; font-size:15px; font-weight:600; color:#111827;">{{ appointment_date }}</p>
+                    <p style="margin:0 0 8px; font-size:13px; color:#6B7280;">Time</p>
+                    <p style="margin:0{% if appointment_code %} 0 16px{% endif %}; font-size:15px; font-weight:600; color:#111827;">{{ appointment_time }}</p>
+                    {% if appointment_code %}
+                    <p style="margin:0 0 8px; font-size:13px; color:#6B7280;">Appointment Reference</p>
+                    <p style="margin:0; font-size:15px; font-weight:600; color:#111827;">{{ appointment_code }}</p>
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0; font-size:13px; line-height:1.6; color:#6B7280;">
+                If you need to reschedule or cancel, please contact {{ clinic_name }} as soon
+                as possible.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px; background-color:#F9FAFB; border-top:1px solid #E5E7EB;">
+              <p style="margin:0; font-size:12px; color:#9CA3AF;">
+                This is an automated reminder from {{ app_name }}. Please do not reply to this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

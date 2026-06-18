@@ -8,7 +8,6 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool, QueuePool
 from typing import Generator
 from fastapi import APIRouter, HTTPException, status
-from core.database import check_db_connection
 import logging
 
 from core.config import settings

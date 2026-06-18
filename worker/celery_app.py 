@@ -1,0 +1,85 @@
+"""
+Celery application instance.
+
+Configuration is sourced entirely from `core.config.settings` so that the
+worker and the FastAPI app always agree on broker/backend URLs, timezone, etc.
+
+If `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND` are not set, sensible local
+defaults (Redis on localhost) are used. This means `celery -A worker.celery_app
+worker` works out of the box in local dev as long as Redis is running, without
+requiring extra env vars — but production deployments should set both
+explicitly (e.g. to a managed Redis / SQS instance).
+"""
+
+from celery import Celery
+from celery.schedules import crontab
+
+from core.config import settings
+
+celery_app = Celery(
+    "hospital_saas",
+    broker=settings.CELERY_BROKER_URL or "redis://localhost:6379/0",
+    backend=settings.CELERY_RESULT_BACKEND or "redis://localhost:6379/1",
+    include=[
+        "worker.email_tasks",
+    ],
+)
+
+celery_app.conf.update(
+    task_serializer="json",
+    accept_content=["json"],
+    result_serializer="json",
+    timezone=settings.DEFAULT_TIMEZONE,
+    enable_utc=True,
+    # Tasks are only acknowledged after they complete successfully — if a
+    # worker process dies mid-task (e.g. OOM), the task is redelivered rather
+    # than silently lost. Important for "send password reset email" — losing
+    # one of these silently would be a support ticket.
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    # Surface "started" state so long-running tasks (e.g. PDF generation,
+    # bulk notification dispatch) are visible in monitoring before they finish.
+    task_track_started=True,
+    # Default retry backoff for tasks that don't specify their own.
+    task_default_retry_delay=60,
+    task_default_max_retries=3,
+)
+
+# ---------------------------------------------------------------------------
+# Periodic tasks (Celery beat)
+#
+# These wire up the SRS-required automation:
+#   - "Automated daily backups per clinic"          (6.x / 7.3 reliability)
+#   - "Appointment reminders"                       (6.3 automated communication)
+#   - "Missed appointment recovery / follow-up"     (6.3 automated communication)
+#
+# The task bodies themselves (process_pending_reminders, etc.) are defined in
+# their respective task modules and are intentionally NOT implemented in this
+# file — celery_app.py owns scheduling only, not business logic.
+# ---------------------------------------------------------------------------
+celery_app.conf.beat_schedule = {
+    "send-appointment-reminders": {
+        "task": "appointments.send_due_reminders",
+        # Every 15 minutes — reminders are time-sensitive (SRS 7.6: <3s AI
+        # response time implies the whole automation stack should be snappy).
+        "schedule": crontab(minute="*/15"),
+    },
+    "process-pending-notifications": {
+        "task": "notifications.process_pending",
+        "schedule": crontab(minute="*/5"),
+    },
+    "aggregate-daily-metrics": {
+        "task": "analytics.aggregate_daily_metrics",
+        # Run once shortly after midnight UTC for the previous day's data.
+        "schedule": crontab(hour=0, minute=15),
+    },
+}
+
+# NOTE: "appointments.send_due_reminders", "notifications.process_pending",
+# and "analytics.aggregate_daily_metrics" are referenced by name in the beat
+# schedule above but their task modules are not part of this change set (only
+# email infrastructure is in scope here). Add
+# "worker.appointment_tasks" / "worker.notification_tasks" /
+# "worker.analytics_tasks" to the `include=[...]` list above once those task
+# modules are implemented, or Celery beat will log
+# "Received unregistered task" errors for these entries.

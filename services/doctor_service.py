@@ -19,6 +19,7 @@ from schemas.doctor import (
     DoctorCreate, DoctorUpdate, Doctor as DoctorSchema,
     DoctorWithSchedule, DoctorAvailability, DoctorStats
 )
+from models.tenant import Tenant
 
 
 class DoctorService:
@@ -62,6 +63,15 @@ class DoctorService:
         
         if not user:
             raise ValueError("User not found or doesn't belong to this tenant")
+
+        tenant = self.db.query(Tenant).filter(Tenant.id == self.tenant_id).first()
+        max_doctors = tenant.enabled_features.get('max_doctors', 2)
+        if max_doctors != -1:
+            current_count = self.db.query(func.count(Doctor.id)).filter(
+                Doctor.tenant_id == self.tenant_id, Doctor.is_active == True
+            ).scalar() or 0
+            if current_count >= max_doctors:
+                raise ValueError(f"Doctor limit ({max_doctors}) reached for your subscription tier")
         
         # Check if user already has a doctor profile
         existing_doctor = self.doctor_repo.get_by_user_id(doctor_in.user_id)

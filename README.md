@@ -74,6 +74,7 @@ python -c "from database import init_db; init_db()"
 6. **Run the application**
 ```bash
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 7. **Create demo data** (optional)
